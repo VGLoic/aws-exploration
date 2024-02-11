@@ -1,0 +1,18 @@
+[package]
+name = "aws-discovery"
+version = "0.1.0"
+edition = "2021"
+authors = ["Loïc Vincent-Genod"]
+description = "Simple Web server and deployment to AWS"
+readme = "README.md"
+repository = "https://github.com/VGLoic/aws_discovery"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.36.0", features = ["full"] }
+axum = "0.7.4"
+tower-http = { version = "0.5.1", features = ["timeout"] }
+serde = { version = "1.0.196", features = ["derive"] }
+axum-macros = "0.4.1"
