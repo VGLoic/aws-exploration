@@ -55,6 +55,15 @@ and query my healthcheck route on PORT 3002
 curl http://localhost:3002
 ```
 
+It is also possible to run the dockerized app without `docker compose`. First we create the `Docker image` using the freshly defined Dockerfile
+```console
+docker build -t my-app .
+```
+And then run a `Docker container` based on this `Docker image`:
+```console
+docker run --publish 3002:3001 --env PORT=3001 my-app
+```
+
 ### 3. Before starting the deployment process
 
 From now on, the goal will be to deploy the application to [Amazon AWS](https://aws.amazon.com/).
@@ -79,6 +88,60 @@ I created a user without any permissions policies because I still don't know whi
 
 From now, I will use this newly created account (with no permissions for the moment) to perform the tasks. Along this guide, I will use the `root user` of my AWS account in order to add to this progammatic account the permissions I need.
 
+### 5. Push the docker image to AWS ECR
+
+I am following [the first part of this youtube video guide](https://www.youtube.com/watch?v=zs3tyVgiBQQ) for this step.
+
+On step 2, I was able to create a Docker `image` of my app. This image was stored in my machine and I can access it using `docker images`.
+
+From this Docker image, I was able to run locally a Docker container by specifying the exposed port and then access my application.
+
+Now we want to deploy this dockerized application using the AWS cloud. AWS will use the Docker image to do that, but first I need to make this image accessible on AWS by pushing my Docker image to AWS.
+
+For this, AWS has a particular service known as [AWS Elastic Container Registry (or ECR)](https://aws.amazon.com/ecr/). It will allow me to store my Docker images and make them available from the other AWS services (in particular the one I'll use later on to deploy it).
+
+First I'll need to login to AWS ECR with my account (not the root user). With that, my Docker is connected to the remote AWS ECR repository where I'll be able to push my Docker image later on.
+```console
+aws ecr get-login-password --region <My AWS region> --profile <My profile, omit if using default> | docker login --username AWS --password-stdin <My AWS account ID>.dkr.ecr.<My AWS region>.amazonaws.com
+```
+I actually got an error of the type `not authorized to perform: ecr:GetAuthorizationToken on resource: * because no identity-based policy allows the ecr:GetAuthorizationToken action` as my account lacks the needed permissions. So I'll use my root user to add to user a permission policiy with full access to `ECR` (`ecr:*`). In a real setup, I would try to not give that much power to this user but restrict to the needed permissions, I took a shortcut in this case.
+
+Running again the command, I have a `Login Succeeded`.
+
+Now that I have access to ECR, I first need to create a repository where I'll push the docker images for my application. I don't have any repositories for now as I can see by running
+```console
+aws ecr describe-repositories --profile <My profile, omit if using default>
+```
+
+I'll create a new repository named `aws-guide-repo`
+```console
+aws ecr create-repository --repository-name aws-guide-repo --profile <My profile, omit if using default>
+```
+
+I am now able to see my repository using the `describe-repositories` above.
+
+Now that I have my repository, I can push my Docker image to it, for this I will build locally my Docker image first
+```console
+docker build -t aws-guide-app .
+```
+
+With that I created locally the Docker image `aws-guide-app` with the (default) tag `latest`.
+
+I am pushing the image to a private registry, as such, the image name and tag must follow the convention `<Registry host name>:<image tag>`. In my case, the registry host name is given by `<My AWS registry URL>/<My ECR repository name>` which becomes `<My AWS account ID>.dkr.ecr.<My AWS region>.amazonaws.com/aws-guide-repo`. I will keep the tag as `latest` in my case as I don't need specific tag. See more details about `docker tag` in the [associated Docker section](https://docs.docker.com/engine/reference/commandline/image_tag/) and in the [private registry dedicated part](https://docs.docker.com/engine/reference/commandline/image_tag/#tag-an-image-for-a-private-registry).
+```console
+docker tag aws-guide-app:latest <My AWS account ID>.dkr.ecr.<My AWS region>.amazonaws.com/aws-guide-repo:latest
+```
+
+And I am finally able to upload it to the ECR repository
+```console
+docker push <My AWS Account ID>.dkr.ecr.<My AWS region>.amazonaws.com/aws-guide-repo:latest
+```
+
+I am now able to see my image on my repository
+```console
+aws ecr describe-images --repository-name aws-guide-repo --profile <My profile, omit if using default>
+```
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
@@ -92,3 +155,4 @@ Start the server
 ```console
 cargo run
 ```
+
