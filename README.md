@@ -215,6 +215,8 @@ The next beast I need to choose is the [Security Group](https://docs.aws.amazon.
 
 The last option I need to the `networks` part is the `Auto-assign public IP`. If I turn this on, my EC2 instances will have a public IP address automatically assigned. While I don't think this is what I would like for a serious setup, I will turn on this one as I will need to access what is running on my EC2 instance later on.
 
+I continued [my chat with Chat GPT](https://chat.openai.com/share/c8c76c08-712e-4dac-a1ba-5a521e5e55e1) about some of this if interested.
+
 #### Monitoring and Tags
 
 These ones are optional, and I think this is fine for now to pass these. There were already quite an amount of informations to digest so I'll see later on if I need it.
