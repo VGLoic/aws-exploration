@@ -142,6 +142,84 @@ I am now able to see my image on my repository
 aws ecr describe-images --repository-name aws-guide-repo --profile <My profile, omit if using default>
 ```
 
+### 6. Switch to AWS ECS
+
+I am following [the second part of this youtube video guide](https://www.youtube.com/watch?v=zs3tyVgiBQQ) for this step.
+
+I'll cheat here and follow the video by using my root user in the AWS Console application. It would not be the way to do it in professional environments but I hope I can do it properly with a dedicated and non root account later on when improving the setup.
+
+Now I'm done with the AWS ECR, I have my Docker image available in AWS. My goal is now to use it for a deployment.
+
+For that I meet [AWS Elastic Container Service or ECS](https://aws.amazon.com/ecs/).
+
+From the docs
+> Amazon Elastic Container Service (ECS) is a fully managed container orchestration service that helps you to more efficiently deploy, manage, and scale containerized applications.
+
+Since I have my containerized application, ECS seems the thing I need.
+
+While browsing a bit, the [getting started](https://aws.amazon.com/ecs/getting-started) on ECS is full of tutorials, seems promising for a later time.
+
+It seems that there is a lot of things in ECS, different tools or solutions in order to best achieve different goals. I am not yet ready to parse every solutions, I'll start with the one in the video and try to understand what it is first.
+
+### 7. Creating a ECS cluster
+
+I am following [the second part of this youtube video guide](https://www.youtube.com/watch?v=zs3tyVgiBQQ) for this step.
+
+So I did go to the ECS part on the AWS Console, first thing I need is to create a `cluster`.
+
+I'm looking to understand what a cluster is first. From the [developer guide page about cluster](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/clusters.html), it says that a cluster is first *a logic grouping of tasks and services*, I don't exactly know what a *task* or a *service* is for the moment so I'll skip this part for now.
+
+Additionally, the doc says that it is additionally the *infrastructure capacity*, I understand it as the hardware on which we're gonna run our code. It can be a combination of:
+- on premises virtual machines or servers: I'm not interested in that,
+- Amazon EC2 instances in the AWS Cloud: the instances that AWS provide,
+- Serveless with AWS Fargate in the AWS Cloud: I don't exactly know what Fargate is but I understand it as an abstraction over EC2 instances in order to not have to manage directly a fleet of EC2. It looks interesting but we're gonna follow the video and start with the good old' EC2 instances.
+
+Actually, I got a better description from the cluster creation page
+![cluster infrastructure components](/images/Screenshot%202024-02-15%20at%2021.25.23.png)
+
+A cluster consists also of `The network (VPC and subnet) where your tasks and services run`. Since this is related to tasks and services, we're gonna explore this a bit later.
+
+Finally, a cluster consists also of *an optional namespace* and a *monitoring option*. It seems less important to me for now.
+
+
+**Let's now create the cluster.**
+
+First thing is to choose a name, I chose `AwsGuideCluster`.
+
+#### Selecting infrastructure
+
+When chosing *infrastructure*, I disable `AWS Fargate (serverless)` and I enable `Amazon EC2 Instances` as I want to start with basic EC2 instances.
+
+The next step is to define the `Auto Scaling Group (ASG)` for these EC2 instances. As I understand, it is the set of parameters that will define the type of EC2 instances, how many and how they are provisionned.
+
+1. `Provision model`: I choose `On Demand` (`Spot` was the other choice) as I don't plan to have this application deployed in the long term and I will not consume a lot of compute capacity.
+2. `Operating System/Architecture`: Huge list of possibilities, I am absolutely not an expert. The first choice is `Amazon Linux 2`, which have eligibility in the free plan and seems like a [good default as it is directly maintained by AWS and with no additional charge](https://aws.amazon.com/amazon-linux-2).
+3. `EC2 Instance Type`: Again a huge list of possibilities. I read a quick overview of the different instances types [here](https://aws.amazon.com/blogs/aws/choosing-the-right-ec2-instance-type-for-your-application/), as I see the `micro` instances belong to the free tier and can be very small, which is fine for me. In the end, I only need to test things out so I chose a `t2.micro`. I actually [discussed a bit with Chat GPT](https://chat.openai.com/share/c8c76c08-712e-4dac-a1ba-5a521e5e55e1) about this in order to understand the differences between all the `t2`, `t3`, `t3a` or `t4g` instances.
+4. `Desired capacity`: I only need one machine, so I set the minimum to `0` and the maximum to `1`.
+5. I let the remaining parameters as default, i.e. unable to SSH and default root volume of 30GiB (which is the minimum anyway).
+
+
+#### Networks
+
+Now I need to choose the *Networks settings*. There are a lot of new notions here.
+
+The first thing I need to do is to choose a `VPC`, I'll choose the default one but I'll try to understand a bit better what it is.
+
+So `VPC` stands for `Virtual Private Cloud`, it is a virtual network in AWS dedicated to my AWS account. It isolates my resources (e.g. EC2 instances, containers, databases) from anything else. Resources within a VPC can securely communicate to each other, however, if I want my resource in my VPC to communicate with something outside from it (like the internet), I will need to do some additional work.
+
+To each VPC is attached `subnets`. A `subnet` will be a range of IP addresses in the VPC and is necessarily living in a single `Availability Zone`. An availability zone is defined as isolated locations within a region. A resource living in a subnet will necessarily have an IP belonging to the defined range of the subnet. In my setup, I will have three subnets (minimum number recommended by AWS for production), one in each availability zone. Ideally, I would run an instance in each subnet in such a way that if an availability zone crashes, the two others would still be fine. More informations on the page about [Regions and Zones](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html) in the AWS documentation.
+
+As an example, I am working in the `eu-west-3` (Paris, France) region because this is where I expect most of my users will be (e.g. me), and the three available subnets the default VPC offers are in `eu-west-3a`, `eu-west-3b` and `eu-west-3c` availability zones.
+
+The next beast I need to choose is the [Security Group](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html), I'll once again choose the default one. A security group acts as a firewall for the container instances running in my VPC, as specified in the documentation: *A security group controls the traffic that is allowed to reach and leave the resources that it is associated with.*. The extremes would be to have a security group which would block or allow all the inbound and outbound traffic to the instances in this security group. In the case of the [default security group](https://docs.aws.amazon.com/vpc/latest/userguide/default-security-group.html), it will allow inbound traffic from any other instance assigned to this security group and it will allow all outbound traffic to any address. This choice is only for the default security group of my VPC, I can then add, and it is encouraged to so, other security groups tailored to my particular needs. In my case of course, I don't need much and the default security group seems good.
+
+The last option I need to the `networks` part is the `Auto-assign public IP`. If I turn this on, my EC2 instances will have a public IP address automatically assigned. While I don't think this is what I would like for a serious setup, I will turn on this one as I will need to access what is running on my EC2 instance later on.
+
+#### Monitoring and Tags
+
+These ones are optional, and I think this is fine for now to pass these. There were already quite an amount of informations to digest so I'll see later on if I need it.
+
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
