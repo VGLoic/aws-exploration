@@ -122,8 +122,10 @@ I am now able to see my repository using the `describe-repositories` above.
 
 Now that I have my repository, I can push my Docker image to it, for this I will build locally my Docker image first
 ```console
-docker build -t aws-guide-app .
+docker build --platform=linux/amd64 -t aws-guide-app .
 ```
+
+PS: the `--platform=linux/amd64` is explained later on.
 
 With that I created locally the Docker image `aws-guide-app` with the (default) tag `latest`.
 
@@ -299,6 +301,8 @@ I leave the remaining optional configurations as default.
 
 Okay so now I have my task definition, I just need to run it right?
 
+I am following [the second part of this youtube video guide](https://www.youtube.com/watch?v=zs3tyVgiBQQ) for this step.
+
 So I go back to my ECS cluster and I click on `Run new task`.
 
 First, I specify that I want to run my task using my cluster.
@@ -313,14 +317,58 @@ I let the other things as default.
 
 Once I run the task, I see that an EC2 instances has been created.
 
-Additionally, I see my task in the `provisioning` state. Issue is that it stays in the provisionning state undefinitely...
+Additionally, I see my task in the `provisioning` state. Issue is that it stays in the provisioning state undefinitely...
 
-Errors:
-- Container only has 960 MB of memory,
-- No GPU,
-- Invalid build.
+#### Mistake #1
 
-Need to try to remove healthcheck to see.
+I have an instance but I see that it has only 960 MB of available memory, so it's not enough for my task which needs something with at least 1GB. Therefore, I adust my task definition, for the task and my container, I set the CPU to 0.25 vCPU and for the memory I set 0.5 GB.
+
+With that changed, I stop the existing task and run a new one with my latest task definition. Still infinite provisioning state...
+
+#### Mistake #2
+
+I made the mistake of asking for 1 GPU in my task definition, 0 was not an allowed input so I set 1. But my `t2.micro` does not actually have any GPU so this also explains why my task can not be provisioned by my existing EC2 instance.
+
+So actually 0 is not an allowed input, but not setting the input is actually setting it at 0. I cried a bit but I now see that my new task is not provisioning undefinitely now, it starts and fails directly.
+
+#### Mistake #3
+
+When checking the logs of my task, I see an error of the kind `exec user process caused: exec format error`. I googled this and found the answer on [Stack Overflow](https://stackoverflow.com/questions/67361936/exec-user-process-caused-exec-format-error-in-aws-fargate-service). I have a M1 Macbook so the system architecture on which I built my docker image (ARM) is not the same than the one I try to run the image on. That's nice to learn and with that, I actually rebuilt my docker image with the proper target architecutre, re-pushed it to my repository on ECR and updated my task definition in order to use my new image.
+
+```console
+docker build --platform=linux/amd64 -t aws-guide-app .
+```
+
+#### Done
+
+Finally I am able to see my task running properly!
+
+
+### 10. Exposing my container to the internet
+
+So now I have my task running on my EC2 instance. My goal is now able to hit the healtcheck route on this AWS machine.
+
+I am following [the second part of this youtube video guide](https://www.youtube.com/watch?v=zs3tyVgiBQQ) for this step.
+
+During the setup of the cluster, I specified the option `Auto-assign public IP` for the networks such that my EC2 instances automatically have a public address. So I try to visit this address with the port I have chosen in my task and the healthcheck route: `<EC2 instance address>:8888/health`. It does not work at all but it's actually expected.
+
+My EC2 instances are all within the default security group, which does not allow for inbound internet access, apart from other resources within this security group. So I'll do a non safe thing here and directly modify the default security group in order to allow to hit on the port 8888 of my EC2 instances from anywhere.
+
+For that I go the `security groups` section in AWS, I have only one security group, the default one. I click on it and edit the inbound rules. I add two new rules:
+- allow trafic from any IPv4 to port 8888,
+- allow trafic from any IPv6 to port 8888.
+
+### 11. Success
+
+*With that updated, I can hit my healthcheck route, and it works, I see the JSON response.* 
+
+This ends the first part of the serie where I learned the basic path to deploy a Docker image, store it on ECR and use it to run a task on ECS.
+
+
+TODO:
+- Need to try to remove healthcheck to see.
+- Need to play with ports
+- What is IPv4 and IPv6?
 
 ## Development
 
