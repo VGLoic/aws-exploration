@@ -40,6 +40,7 @@ async fn main() {
 }
 
 async fn healthcheck() -> (StatusCode, Json<Healthcheck>) {
+    println!("Healthcheck has been called");
     (StatusCode::OK, Json(Healthcheck { ok: true }))
 }
 

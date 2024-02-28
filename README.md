@@ -292,6 +292,7 @@ So I create my only container with
   - GPU: 1 as it is the minimum allowed,
   - Memory hard limit: 1 GB as this is what I have with my `t2.micro`,
   - Memory soft limit: 1 GB.
+- healthcheck: since I have a `health` route I can setup it. I modify the default version to `CMD-SHELL,curl -f http://localhost:3000/health || exit 1`. This command is ran inside the container so the targeted port is the container port, not the host port.
 
 
 I leave the remaining optional configurations as default.
@@ -339,9 +340,25 @@ When checking the logs of my task, I see an error of the kind `exec user process
 docker build --platform=linux/amd64 -t aws-guide-app .
 ```
 
+#### Mistake #4
+
+So my task is running now but I see it as `Unhealthy`. So it seems my healtcheck is failing.
+
+I actually went a bit crazy on this one as I did not really know what to debug.
+
+As a matter of fact, I learned that I could setup an healthcheck at the Docker image level. I followed this [documentation](https://lumigo.io/container-monitoring/docker-health-check-a-practical-guide/#:~:text=In%20addition%20to%20the%20CMD,health%20check%20every%2030%20seconds.).
+
+This Docker healthcheck was very similar to the one I had put in my task definition. So I tried it to see if at least my healtcheck worked locally, and it did not. Here debugging was easier as I know quite well how to go in my Docker container but I still don't know how to SSH in my EC2 machine, another problem for another day. My issue is that `curl` was not installed.
+
+So I modified my Dockerfile to add the installation, just after using the last base image `FROM alpine:3.18 AS final`
+```docker
+# Install curl
+RUN apk add --no-cache curl
+```
+
 #### Done
 
-Finally I am able to see my task running properly!
+Finally I am able to see my task running properly and my healtcheck passing!
 
 
 ### 10. Exposing my container to the internet
@@ -358,17 +375,13 @@ For that I go the `security groups` section in AWS, I have only one security gro
 - allow trafic from any IPv4 to port 8888,
 - allow trafic from any IPv6 to port 8888.
 
+I did not really know the differences between IPv4 and IPv6 so I found this [nice article](https://www.geeksforgeeks.org/differences-between-ipv4-and-ipv6/).
+
 ### 11. Success
 
 *With that updated, I can hit my healthcheck route, and it works, I see the JSON response.* 
 
 This ends the first part of the serie where I learned the basic path to deploy a Docker image, store it on ECR and use it to run a task on ECS.
-
-
-TODO:
-- Need to try to remove healthcheck to see.
-- Need to play with ports
-- What is IPv4 and IPv6?
 
 ## Development
 
