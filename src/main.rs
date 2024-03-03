@@ -1,5 +1,6 @@
-use axum::{http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::{process, time::Duration};
 use tokio::{self, signal};
 use tower_http::timeout::TimeoutLayer;
@@ -11,12 +12,28 @@ async fn main() {
         process::exit(1);
     });
 
+    let ssl_addendum = if config.ssl_required {
+        "?sslmode=require"
+    } else {
+        ""
+    };
+    let db = PgPoolOptions::new()
+        .max_connections(5)
+        .acquire_timeout(Duration::from_secs(10))
+        .connect(format!("{}{}", config.database_url, ssl_addendum).as_str())
+        .await
+        .unwrap_or_else(|err| {
+            println!("Error while connecting to the database: {err}");
+            process::exit(1);
+        });
+
     let app = Router::new()
         .route("/health", get(healthcheck))
         .fallback(not_found_handler)
         .layer(TimeoutLayer::new(Duration::from_secs(
             config.global_timeout.into(),
-        )));
+        )))
+        .with_state(db);
 
     let addr = format!("0.0.0.0:{port}", port = config.port);
     let listener = tokio::net::TcpListener::bind(&addr)
@@ -39,19 +56,29 @@ async fn main() {
     println!("App has been gracefully shutdown");
 }
 
-async fn healthcheck() -> (StatusCode, Json<Healthcheck>) {
+async fn healthcheck(State(db): State<Pool<Postgres>>) -> (StatusCode, Json<HealthcheckResponse>) {
     println!("Healthcheck has been called");
-    (StatusCode::OK, Json(Healthcheck { ok: true }))
+    let db_healthy = sqlx::query("SELECT 1").fetch_one(&db).await.is_ok();
+    (
+        StatusCode::OK,
+        Json(HealthcheckResponse {
+            ok: true,
+            db_ok: db_healthy,
+        }),
+    )
 }
 
 #[derive(Serialize)]
-struct Healthcheck {
+struct HealthcheckResponse {
+    db_ok: bool,
     ok: bool,
 }
 
 struct Config {
     port: u16,
     global_timeout: u8,
+    database_url: String,
+    ssl_required: bool,
 }
 
 impl Config {
@@ -64,9 +91,17 @@ impl Config {
             .unwrap_or_else(|_| "10".to_string())
             .parse::<u8>()?;
 
+        let database_url = std::env::var("DATABASE_URL")?;
+
+        let ssl_required = std::env::var("SSL_REQUIRED")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse::<bool>()?;
+
         Ok(Self {
             port,
             global_timeout,
+            database_url,
+            ssl_required,
         })
     }
 }

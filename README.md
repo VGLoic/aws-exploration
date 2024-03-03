@@ -384,6 +384,21 @@ I did not really know the differences between IPv4 and IPv6 so I found this [nic
 
 This ends the first part of the serie where I learned the basic path to deploy a Docker image, store it on ECR and use it to run a task on ECS.
 
+
+### 12. Preparing second iteration: adding a database in all that
+
+I'm happy to be able to deploy my app using ECR and ECS! Now I would like to add a database and let my app connect to it.
+
+So my first step is to modify my code in order to be able to connect to a database locally.
+
+I chose [Postgres](https://www.postgresql.org/) as database, not because this is what I need, but because this is what I am the most used to in my projects.
+
+Then I modified my codebase in order to be able to connect to database using the `DATABASE_URL` environment variable, the `healthcheck` route has been modified in order to also retrieve the health of the database by executing a dummy query against it. In this project, I don't care about real database usage which would include topics like migrations, tables or else, I just care about properly connecting to a database.
+
+I also modified the `compose.yaml` in order to spawn a `Postgres` database in the docker compose, I actually modified just a few details around what `docker init` provided me at the start.
+
+With that, I am all set and by running `docker compose up --build`, I can query my healthcheck route `curl http://localhost:3002/health` and get my updated response `{"db_ok":true,"ok":true}` (I don't really care about the format of the healtcheck response too by the way).
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
