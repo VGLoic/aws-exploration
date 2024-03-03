@@ -1,6 +1,6 @@
 # Deploy a Web server to AWS
 
-The goal of this repository is to implement a trivial web server, deploy it on AWS and describe the process along the way.
+The goal of this repository is to implement a basic web server, deploy it on AWS and describe the process along the way.
 
 ## Service description
 
@@ -30,7 +30,7 @@ docker init
 ```
 I used all the default options and it created a `.dockerignore`, a `compose.yml`, a `Dockerfile` and a `README.Docker.md`. All the files contain explanatory comments wich is greatly appreciated.
 
-During the creation process of the Dockerfile, I set that the listening port was `3000` and as a consequence, the `EXPOSE 3000` command has been added in the Dockerfile. **However**, I don't really know in advance which `port` I will use since I setup the exposed `port` in my service as controlled by the `PORT` env variable. The `EXPOSE` cmd is actually not publishing and acts as a documentation between the Dockerfile and the developer running it, as [the documentation](https://docs.docker.com/engine/reference/builder/#expose) explains. Therefore, I remove the `EXPOSE 3000` line in my Dockerfile and I will handle the exposed `PORT` when running my container.
+During the creation process of the Dockerfile, I set that the listening port was `3000` and as a consequence, the `EXPOSE 3000` command has been added in the Dockerfile. **However**, I don't really know in advance which `port` I will use since I setup the exposed `port` in my service as controlled by the `PORT` env variable. The `EXPOSE` cmd is actually not publishing the port and acts as a documentation between the Dockerfile and the developer running it, as [the documentation](https://docs.docker.com/engine/reference/builder/#expose) explains. Therefore, I remove the `EXPOSE 3000` line in my Dockerfile and I will handle the exposed `PORT` when running my container.
 
 I modify the `compose.yml` as an example of it
 ``` yaml
@@ -74,7 +74,7 @@ Then I will start simple and dirty by following [this youtube video guide](https
 
 However, I'll try to understand and explain as best as I can the different steps and the various notions in it.
 
-Way later on, the goal will be to perform deployment using code and to integrate the deployment it in the CI.
+Way later on, the goal will be to perform deployment using code and to integrate the deployment directly in the CI.
 
 ### 4. Account creation and AWS setup
 
@@ -215,7 +215,7 @@ As an example, I am working in the `eu-west-3` (Paris, France) region because th
 
 The next beast I need to choose is the [Security Group](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html), I'll once again choose the default one. A security group acts as a firewall for the container instances running in my VPC, as specified in the documentation: *A security group controls the traffic that is allowed to reach and leave the resources that it is associated with.*. The extremes would be to have a security group which would block or allow all the inbound and outbound traffic to the instances in this security group. In the case of the [default security group](https://docs.aws.amazon.com/vpc/latest/userguide/default-security-group.html), it will allow inbound traffic from any other instance assigned to this security group and it will allow all outbound traffic to any address. This choice is only for the default security group of my VPC, I can then add, and it is encouraged to so, other security groups tailored to my particular needs. In my case of course, I don't need much and the default security group seems good.
 
-The last option I need to the `networks` part is the `Auto-assign public IP`. If I turn this on, my EC2 instances will have a public IP address automatically assigned. While I don't think this is what I would like for a serious setup, I will turn on this one as I will need to access what is running on my EC2 instance later on.
+The last option I need to the `networks` part is the `Auto-assign public IP`. If I turn this on, my EC2 instances will have a public IP address automatically assigned. While I don't think this is what I would like for a serious setup, I will turn on this on as I will need to access what is running on my EC2 instance later on.
 
 I continued [my chat with Chat GPT](https://chat.openai.com/share/c8c76c08-712e-4dac-a1ba-5a521e5e55e1) about some of this if interested.
 
@@ -248,11 +248,12 @@ So a `Task Definition` is defined as a good old JSON containing the parameters o
 - for each container,
   - which Docker image I want to use,
   - container port mapping,
-  - env variables.
+  - env variables,
+- etc...
 
 So as I understand, I'll create this task definition once. It will describe how I plan to run my app. Once I have this, I'll be able to use this `Task Definition` in order to consistenly deploy my app.
 
-On the documentation page, I also see that I will be able to run my `Task Definition` either as a `Task`, either as a `Service`. As I understand, a `Task` is a oneshot thing, e.g. `Run three tasks based on my task definition please`. A `Service` will run the task definition but also maintain the desired number of tasks in the ECS cluster in case a task fails or finishes, e.g. `I permanently want three tasks based on my task definition please`.
+On the documentation page, I also see that I will be able to run my `Task Definition` either as a `Task`, either as a `Service`. As I understand, a `Task` is a oneshot thing, e.g. `Run three tasks based on my task definition please`. A `Service` will run the task definition but also maintain the desired number of tasks in the ECS cluster in case a task fails or finishes, e.g. `I permanently want three tasks running based on my task definition please`.
 
 Okay good, it clarifies a few things. I'll go create my `Task Definition` then.
 
