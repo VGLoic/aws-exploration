@@ -27,6 +27,8 @@ async fn main() {
             process::exit(1);
         });
 
+    println!("Successfully connected to database");
+
     let app = Router::new()
         .route("/health", get(healthcheck))
         .fallback(not_found_handler)

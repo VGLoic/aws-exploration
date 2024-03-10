@@ -10,6 +10,21 @@ This is a simple webserver exposing one healthcheck route `GET /health`. The ass
 
 Here is the list of steps that have been taken when developing and deploying the services.
 
+1. [First iteration of the service](#1-first-iteration-of-the-service),
+2. [Setup Dockerfile](#2-setup-dockerfile),
+3. [Before starting the deployment process](#3-before-starting-the-deployment-process),
+4. [Account creation and AWS setup](#4-account-creation-and-aws-setup),
+5. [Push the docker image to AWS ECR](#5-push-the-docker-image-to-aws-ecr),
+6. [Switch to AWS ECS](#6-switch-to-aws-ecs),
+7. [Creating an ECS cluster](#7-creating-an-ecs-cluster),
+8. [Creating a task definition](#8-creating-a-task-definition),
+9. [Running my Task](#9-running-my-task),
+10. [Exposing my container to the internet](#10-exposing-my-container-to-the-internet),
+11. [Success](#11-success),
+12. [Preparing second iteration: adding a database in all that](#12-preparing-second-iteration-adding-a-database-in-all-that)
+13. [Create a database](#13-create-a-database),
+14. [Connection the app to the database](#14-connecting-the-app-to-the-database)
+
 ### 1. First iteration of the service
 
 The web server is developed with basic capabilities:
@@ -163,7 +178,7 @@ While browsing a bit, the [getting started](https://aws.amazon.com/ecs/getting-s
 
 It seems that there is a lot of things in ECS, different tools or solutions in order to best achieve different goals. I am not yet ready to parse every solutions, I'll start with the one in the video and try to understand what it is first.
 
-### 7. Creating a ECS cluster
+### 7. Creating an ECS cluster
 
 I am following [the second part of this youtube video guide](https://www.youtube.com/watch?v=zs3tyVgiBQQ) for this step.
 
@@ -398,6 +413,81 @@ Then I modified my codebase in order to be able to connect to database using the
 I also modified the `compose.yaml` in order to spawn a `Postgres` database in the docker compose, I actually modified just a few details around what `docker init` provided me at the start.
 
 With that, I am all set and by running `docker compose up --build`, I can query my healthcheck route `curl http://localhost:3002/health` and get my updated response `{"db_ok":true,"ok":true}` (I don't really care about the format of the healtcheck response too by the way).
+
+### 13. Create a database
+
+So I looked a bit on how to create a Postgres on AWS, I found that I needed to go to [Amazon Relational Database Service (RDS)](https://aws.amazon.com/rds/).
+As I liked my previous video, I looked for a video of the same guy than before about RDS, I found this [one](https://www.youtube.com/watch?v=vw5EO5Jz8-8). I watched it but it is not exactly what I want to do.
+
+I'll go try to do the thing by myself!
+
+So I go to RDS and go with the `Create database` link. 
+
+My first choice is to choose a *Database creation method* between *Standard create* and *Easy create*, I'll go for *Standard create* as the video taught me that *Easy create* could lead to things that cost more money and that I would like to see the various options.
+
+Then I need to choose an *Engine*, here I will go for the very simple *PostgreSQL*, I'll not got for Aurora. For a serious project, I think I would go for Aurora but in my case, I want to start with something dead simple.
+
+I choose the latest *engine version* and then select the *Free tier*.
+
+#### Enter the settings
+
+I'll go quickly on the non interesting things.
+
+- DB instance identifier: aws-guide-db-1,
+- username & password: some stuff I chose,
+- DB instance class: I don't have much choice here, free tier I guess. I'll go with the `db.t3.micro`, I don't really need performance anyway here,
+- storage type: I stay with the default `General Purpose SSD (gp2)`,
+- allocated storage: the minimum with 20GiB,
+- I disable storage autoscaling,
+
+#### Connectivity
+
+A bit more involved piece here.
+
+First I need to choose a *Compute resource* between *Don’t connect to an EC2 compute resource* and *Connect to an EC2 compute resource*. The second option is tempting but it asked me to select an EC2 instance by ID. So this is not really what I want since I don't know in advance which EC2 instance I have.
+
+As I understand, this option is more if I have one static EC2 instance running in a different VPC and I want to automatically make the network changes. In my case, I plan to put everything in the default VPC so I expect to not have to do complex stuff for connection, to be confirmed. In any case, I can still go back to this later on so I will choose the first option *Don’t connect to an EC2 compute resource*.
+
+Then I need to choose a *Network type* between `IPv4` and `IPv4 and/or IPv6`, I'll stay simple with only `IPv4` as it is written that `IPv6` would require additional configuration.
+
+For VPC, subnet and VPC security group, I choose the default everytime as I want to stay within my default VPC where my task will be.
+
+I disable the public access to the database as I want to interact with my DB only through my app.
+
+I let the other options as default.
+
+#### Database authentication
+
+I choose only Password authentication. The addition of IAM database authentication seems promising but I don't want to deal with IAM for now as I cheat with my root user.
+
+#### Other settings
+
+I specify in the *Initial database name* that I want `awsguide`. Otherwise I would need to create this database later on.
+
+I let everything else as default.
+
+#### Database creation
+
+I create my database. This took a few minutes!
+
+## 14. Connecting the app to the database
+
+First I push my new Docker image on ECR using the same process than previously.
+
+Then I create a new `revision` for my task definition.
+- I update the used image,
+- I add a `DATABASE_URL` environment variable, the format is `postgresql://<Postgres user>:<Postgres password>@<Posgres host>:<Postgres port>/<Posgtres DB>`.
+
+
+I have my new revision, I try to launch a task with it, I don't expect it to work but who knows.
+
+Looks like it worked! I can query my healthcheck and it says everything is healthy!
+
+I add a log in the `main.rs` to be sure connection is made. I create a new task definition and a new task. 
+
+Ok everything seems to be working, great success!
+
+I delete my database in order to not have to pay something. I will create it again if needed.
 
 ## Development
 
