@@ -6,9 +6,9 @@ The goal of this repository is to implement a basic web server, deploy it on AWS
 
 This is a simple webserver exposing one healthcheck route `GET /health`. The associated handler will check the health of a connected `postgres` database and answer a status `200` response with a JSON body `{ ok: true, services: { database: true } }`.
 
-## Steps
+## Deploying for a first time
 
-Here is the list of steps that have been taken when developing and deploying the services.
+Here is the list of steps that have been taken when developing and deploying the service.
 
 1. [First iteration of the service](#1-first-iteration-of-the-service),
 2. [Setup Dockerfile](#2-setup-dockerfile),
@@ -23,7 +23,7 @@ Here is the list of steps that have been taken when developing and deploying the
 11. [Success](#11-success),
 12. [Preparing second iteration: adding a database in all that](#12-preparing-second-iteration-adding-a-database-in-all-that)
 13. [Create a database](#13-create-a-database),
-14. [Connection the app to the database](#14-connecting-the-app-to-the-database)
+14. [Connecting the app to the database](#14-connecting-the-app-to-the-database).
 
 ### 1. First iteration of the service
 
@@ -470,7 +470,7 @@ I let everything else as default.
 
 I create my database. This took a few minutes!
 
-## 14. Connecting the app to the database
+### 14. Connecting the app to the database
 
 First I push my new Docker image on ECR using the same process than previously.
 
@@ -488,6 +488,81 @@ I add a log in the `main.rs` to be sure connection is made. I create a new task 
 Ok everything seems to be working, great success!
 
 I delete my database in order to not have to pay something. I will create it again if needed.
+
+## Trying AWS Fargate instead of EC2 instances
+
+So I'm very happy with the first part, I learned a lot! Now I want to try to abstract a bit away the EC2 instances by trying out AWS Fargate.
+
+Additionally, I often deal with admin applications that are used not that often and by a limited amount of users. For these kind of applications, it seems that the serveless approach of AWS Fargate makes more sense than EC2 instances.
+
+By the way, I watched a [nice video](https://www.youtube.com/watch?v=buKoMUR9t84) (always the same guy) about the different *compute* possibilities on AWS. There are a lot to explore, but right now I want to try out Fargate.
+
+I will follow [this video](https://www.youtube.com/watch?v=o7s-eigrMAI) for this part and see how it goes.
+
+The list of steps will be updated below.
+
+1. [Modifying my cluster](#1-modifying-my-cluster-actually-creating-a-new-one),
+2. [Creating a new task definition](#2-creating-a-new-task-definition),
+3. [Running as as task](#3-running-as-a-task).
+
+### 1. Modifying my cluster, actually creating a new one
+
+So when I previously created my cluster on AWS ECS, I disabled the AWS Fargate compute option. I first need to re-activate it.
+
+I have actually not found how to re-activate it by editting my cluster, I don't really know if this is possible or not. It makes sense to me that it is non necessarily editable as it is a big choice.
+
+For now, I'll simply create a new cluster with only AWS Fargate! At least I will not have any conflicts between my EC2 instances and Fargate.
+
+So I create my new cluster `AwsFargateGuideCluster` with only `AWS Fargate` enabled for my infrastructure.
+
+Actually, all the remaining options are for `Monitoring` and `Tags`, which I don't really care about it for now so I'll let the defaults.
+
+In terms of cluster setup, using AWS Fargate is extremely more simple than using EC2 instances!
+
+My new cluster is now ready!
+
+Taking a look at it and comparing it with my previous cluster, I am looking at the `infrastructure` tab.
+
+In my previous cluster, I had one `Capacity provider` corresponding to the `Auto scaling group` I had defined (like 0 as min number of instances, 1 as max number of instances, etc...). In my new cluster, I have actually two `FARGATE` and `FARGATE_SPOT` but logically no `Auto scaling group`. I am not trying to understand for now what are the differences between `FARGATE` and `FARGATE_SPOT` but I read that there are automatically managed and I can not remove or edit them.
+
+Let's continue
+
+### 2. Creating a new task definition
+
+The task definition I created in the fist part was actually setup for `EC2`, I explictly disabled `AWS Fargate`.
+
+I first wanted to update my task definition, I could create a new revision with enabling both `EC2` and `AWS Fargate` **BUT** it forces the `network mode` of my task to `awsvpc` instead of `default`.
+
+I don't want to break my first task definition so I'll just create a new one, dedicated to AWS this time around!
+
+I'll go quickly for the creation as it is very close to the first task definition I created earlier:
+- Operating system/arch: `Linux/X86_64`,
+- Network mode: `awsvpc` is enforced,
+- Task size: same than before, it's funny because here I can't write anything as previously with EC2, I need to choose among authorised possibilites,
+  - CPU: .25 vCPU,
+  - Memory: .5 GB
+- Container settings, still only one container:
+  - name: `AwsFargateGuideUniqueContainer`,
+  - image URI: same than before,
+  - port mapping: I choose the container port at `3000` as I will not add any `PORT` env variable and that my default value is `3000`,
+  - resource allocation limits: same than before,
+  - env variables: I add my `DATABASE_URL` value that I got from my running DB using AWS RDS,
+  - healthcheck: same than before,
+- other settings: all as default.
+
+### 3. Running as a task
+
+In the video, the task definition is directly used in a `Service`. In my case, I'll begin by simply running a single `Task`, I'll follow the instructions for the `Service` later on!
+
+So I do as before and run my task by letting the task creation flow selecting `AWS Fargate` for my infrastructure.
+
+I have my task running, I grab its public IP and query it with port 3000 and path `/health`, so like `<Task public IP>:3000/health`.
+
+As expected it does not work because I need to allow inbound traffic on port 3000 in my default security group, I add the inbound rules for this.
+
+And then it works!
+
+All good on this side! Now let's go with the video with creating a service for this task definition!
 
 ## Development
 
