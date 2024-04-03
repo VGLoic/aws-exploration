@@ -564,6 +564,34 @@ And then it works!
 
 All good on this side! Now let's go with the video with creating a service for this task definition!
 
+### 4. Creating a service
+
+I will simplify a bit my code and remove the database interaction for now. It is a pain to launch my DB and then delete it so I will stay simple with a code without database interaction. After my updates, I created a new task definition with family `AWSFargateGuideSimpleTaskFamily`.
+
+Now let's go back to my cluster and create the service!
+
+It looks quite similar than when launching a task for now. For the first part I need to define my compute options, I choose to use the `Capacity provider strategy` with `FARGATE`. As I understand this is meant to handle multiple capacity provider but it works with one in any case.
+
+The second part is the deployment configuration, I specify here that I want to run a **Service** and I put my `AWSFargateGuideSimpleTaskFamily` task definition. I name my service `AWSFargateGuideSimpleTaskService` and I specify that I only want one task running.
+
+The other options are actually filled by default, so it looks I could stop there. However the video talks about a `Load balancer` so I will try to setup one. I go to the `Load balancing` section.
+
+I need to choose between `Application Load Balancer` and `Network Load Balancer`, I am interested in the `Application Load Balancer` as I want it to be my entrypoint at the HTTP level.
+
+The `container` part is auto filled and the incoming traffic will be mapped to the port 3000 of my container, which is good.
+
+Then I need to specify a name, I'll go with `AWSFargateGuideLB`.
+
+Now we meet something new, I need to create a `Listener` that will define the listened connection requests to my load balancer. I'll stay with the default which is on `Port` 80 and using the HTTP protocol.
+
+Another notion now with the `Target group`, it is used in order to route the requests to the tasks. As I understand it will keep an eye on which tasks are there, which are healthy or not in order to correctly route the requests. I'll keep the default settings but I will change the `Health check path` to `/health`.
+
+I create my service and wait for a few minutes.
+
+I see my service as `Active` and I see `1/1 tasks running`, looking good! I use the DNS name of the load balancer and try to query it with the path `<Load balancer DNS name>/health`, no response but this is expected, let's try to modify the default security group to allow incoming traffic for Port 80. I modified it, retriggered my query, and it works! Great!
+
+Now, I cheated a bit as I have used my default security group for everything. In the video, the guy is using a custom security group, so I'm gonna do that next.
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
