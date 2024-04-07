@@ -639,7 +639,7 @@ Now I need to setup the `Listeners and routing`, I need to create a `Target grou
 
 #### Target group creation
 
-For the target type, I will choose `IP addresses` because the video insisted on it. I understand that `instances` is when you work with EC2 instances directly and that `Lambda function` is for `Lambda functions`. However, there is also the `Application Load Balancer` type which seems promising, I will try this after.
+For the target type, I will choose `IP addresses` because the video insisted on it. I understand that `instances` is when you work with EC2 instances directly and that `Lambda function` is for `Lambda functions`. However, there is also the `Application Load Balancer` type which seems promising, I will try this after. (I actually tried later on, but it was not possible to use it with Fargate as at it does not work with my network mode `awsvpc` of my task definition).
 
 For the name, I choose `AWSGuideFargateLBTargetGroup`.
 
