@@ -2,6 +2,10 @@
 
 The goal of this repository is to implement a basic web server, deploy it on AWS and describe the process along the way.
 
+Here are the big steps that have been taken in this repository
+1. [Deploying for a first time](#deploying-for-a-first-time),
+2. [Trying AWS Fargate instead of EC2 instances](#trying-aws-fargate-instead-of-ec2-instances).
+
 ## Service description
 
 This is a simple webserver exposing one healthcheck route `GET /health`. The associated handler will check the health of a connected `postgres` database and answer a status `200` response with a JSON body `{ ok: true, services: { database: true } }`.
@@ -23,7 +27,7 @@ Here is the list of steps that have been taken when developing and deploying the
 11. [Success](#11-success),
 12. [Preparing second iteration: adding a database in all that](#12-preparing-second-iteration-adding-a-database-in-all-that)
 13. [Create a database](#13-create-a-database),
-14. [Connecting the app to the database](#14-connecting-the-app-to-the-database).
+14. [Connecting the app to the database](#14-connecting-the-app-to-the-database),
 
 ### 1. First iteration of the service
 
@@ -491,6 +495,8 @@ I delete my database in order to not have to pay something. I will create it aga
 
 ## Trying AWS Fargate instead of EC2 instances
 
+Here is the list of steps that have been taken.
+
 So I'm very happy with the first part, I learned a lot! Now I want to try to abstract a bit away the EC2 instances by trying out AWS Fargate.
 
 Additionally, I often deal with admin applications that are used not that often and by a limited amount of users. For these kind of applications, it seems that the serveless approach of AWS Fargate makes more sense than EC2 instances.
@@ -503,7 +509,10 @@ The list of steps will be updated below.
 
 1. [Modifying my cluster](#1-modifying-my-cluster-actually-creating-a-new-one),
 2. [Creating a new task definition](#2-creating-a-new-task-definition),
-3. [Running as as task](#3-running-as-a-task).
+3. [Running as as task](#3-running-as-a-task),
+4. [Creating a service](#4-creating-a-service),
+5. [Creating a Service in default security group and Load Balancer in another security group](#5-creating-a-service-in-default-security-group-and-load-balancer-in-another-security-group).
+
 
 ### 1. Modifying my cluster, actually creating a new one
 
@@ -591,6 +600,71 @@ I create my service and wait for a few minutes.
 I see my service as `Active` and I see `1/1 tasks running`, looking good! I use the DNS name of the load balancer and try to query it with the path `<Load balancer DNS name>/health`, no response but this is expected, let's try to modify the default security group to allow incoming traffic for Port 80. I modified it, retriggered my query, and it works! Great!
 
 Now, I cheated a bit as I have used my default security group for everything. In the video, the guy is using a custom security group, so I'm gonna do that next.
+
+### 5. Creating a Service in default security group and Load Balancer in another security group
+
+So from what I understood from the video, the goal is to create:
+- one load balancer in one security group,
+- one service that will run my task in my default security group.
+
+Since the load balancer hits on the tasks of my service, I will need to make sure that the two security groups are properly configured in order to allow traffic. Actually, all I need is to allow incoming traffic coming from the load balancer security group to the default security group of my service and tasks.
+
+Let's go then.
+
+In the video, the guy creates beforehand a load balancer but let's see if I can do this within the service creation flow directly. It does not seem so, it would lead to a load balancer in the same security group. No worries, let's create one from scratch!
+
+So I still want an `Application Load Balancer` and I will name it `AWSFargateGuideLB`.
+
+It will be `internet-facing` and not `internal`, and I choose the `IPv4` as IP address type.
+
+For the VPC, I will choose my default VPC and choose the three availability zones, it gives me the three associated subnets.
+
+Now on the `Security groups`, I can only choose an existing so I open a new tab in order to create a new security group as I don't want the default one here.
+
+#### Security group creation
+
+I will choose the name as `AWSFargateGuideLB` and the default VPC.
+
+By default I have no `inbound rules` and one `outbound rule` (allowing traffic to all IPv4 if I understand correctly).
+
+I will want to access my load balancer from the internet, so I will add one inbound rule in order to allow all incoming traffic on Port 80 from IPv4.
+
+Security group successfully created
+
+#### Back to the load balancer
+
+I choose my newly created `AWSFargateGuideLB` security group.
+
+Now I need to setup the `Listeners and routing`, I need to create a `Target group` in order to know where I forward my requests. It opens a new tab.
+
+#### Target group creation
+
+For the target type, I will choose `IP addresses` because the video insisted on it. I understand that `instances` is when you work with EC2 instances directly and that `Lambda function` is for `Lambda functions`. However, there is also the `Application Load Balancer` type which seems promising, I will try this after.
+
+For the name, I choose `AWSGuideFargateLBTargetGroup`.
+
+For the `Protocol port`, I will choose `3000` as this is on this port that my app will be exposed. And I also modify the healthcheck command to use `/health`.
+
+#### Back to the load balancer
+
+I can now choose my target group and I go for the creation!
+
+#### Back to the service
+
+Let's see if I can create my service with my new load balancer.
+
+I can pick my `AWSFargateGuideLB` load balancer!
+
+For the `listener`, I can choose the `use an existing listener` and select the listener on `80:HTTP`.
+
+For the `Target group`, I can choose the `use an existing target group` and select the `AWSGuideFargateLBTargetGroup`.
+
+I create my service but hitting on the load balancer gives me a 504, this is expected as I still need to allow traffic between my two security groups.
+
+So I go to the security group part in AWS and I go for modifying my default security group. I will add an `inbound rule` in order to allow traffic coming to Port 3000 coming from my security group `AWSFargateGuideLB`.
+
+I save this and try to hit on my load balancer DNS (with `/health`) and it works!
+
 
 ## Development
 
