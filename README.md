@@ -806,7 +806,9 @@ I'll modify my workflow:
 
 I'll update my healtcheck route to add an hardcoded `version` integer, just to be able to see the results.
 
-I create a new PR for that.
+I create a new [PR](https://github.com/VGLoic/aws-exploration/pull/2) for that. I merged it into main, the [action](https://github.com/VGLoic/aws-exploration/actions/runs/8678916140/job/23796627847) is a success and I can query my new healthcheck route and see my version number. Good stuff.
+
+Now I would like to do the same but with a load balancer and adding the logs for my tasks.
 
 
 ## Development
