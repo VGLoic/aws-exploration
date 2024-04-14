@@ -665,6 +665,96 @@ So I go to the security group part in AWS and I go for modifying my default secu
 
 I save this and try to hit on my load balancer DNS (with `/health`) and it works!
 
+### 6. Integrating a CI/CD - following the blog post
+
+I would now like to have some automation and try to automatically deploy my new code when I push it on the `main` branch. I found this [blog post](https://aws.amazon.com/blogs/opensource/github-actions-aws-fargate/) of AWS that introduce the main AWS Github Actions, let's dig a bit.
+
+
+The blog post describes four Github Actions:
+> We have open sourced the following actions at github.com/aws-actions:
+> - github.com/aws-actions/configure-aws-credentials – Retrieves AWS credentials from GitHub secrets and makes them available for use by the rest of the actions in the workflow.
+> - github.com/aws-actions/amazon-ecr-login – Lets you log into your ECR registry so you can pull images from and push them to your ECR repositories.
+> - github.com/aws-actions/amazon-ecs-render-task-definition – Inserts the ID of a container image into the task definition for ECS.
+> - github.com/aws-actions/amazon-ecs-deploy-task-definition – Deploys an updated task definition and image to your ECS service.
+
+
+Looks exactly what I need, so let's try to integrate these.
+
+I'll first follow what they do in the blog post, then I'll adapt it to my codebase.
+
+#### Understanding a bit more IAM
+
+So I previously created a user `AwsGuide`.
+
+This user has a set of permissions, and as said by AWS directly
+> Permissions are defined by policies attached to the user directly or through groups.
+
+I don't want to handle `groups` for now so I'll go directly with the `policy`. There is a huge list of all the possible policies and it's not very easy for me to navigate in this. There are two ways to attach policies:
+1. create an `inline policy` for the user: in this case, I directly browse the policies for one or more services (like ECR or EC2) and I add the ones I need,
+2. attach a `managed policy` directly, as I understand, AWS has prepared some packages of policies that are commonly used together.
+
+I will try to use the `managed policy` in my case. It is actually advised to give policy to `group` and not to `user` directly, so I'll go create my group `aws-fargate-ci` then.
+
+I can directly attach some permissions policies. I find on [this page](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_job-functions.html#jf_developer-power-user) the `Developer power user job function` with the managed policy `PowerUserAccess`, it seems too broad for my case but I will start with that! I will then add my user to this group.
+
+At the beginning of this work, I had added an inline policy to my user with full access to ECR, I will remove it as I expect my new managed policy to also provide this (and it does). Taking a look at this managed policy in AWS is actually not so easy because it contains some lower level managed policies, so I understand that it has a lot of things, but I don't grasp all of it. I know however that it can not create or manage accounts, which is good.
+
+I will continue with the set up in the blog post and go back to this wheen needed.
+
+The blog post contains some setup, I'll try to follow with the AWS CLI this time. Additionally, I'll need to do some actions in the CI so I will not be able to rely on our root user anymore.
+
+#### Configuration of the ECR
+
+I already have an ECR so I will not create a new one, but I still want to be able to read from it and ultimately push image in it.
+
+I can query my repositories using `aws ecr describe-repositories --profile <my profile>` so it's all good on this side.
+
+#### Task definition
+
+I'll copy their task definition in `./aws/task-def.json`. The task is really simple at it directly echoes an HTML page. If I compare to my previous task definitions, there are a lot less things, but we'll try to underestand this better a bit later.
+
+I'll register it using their command
+```console
+aws ecs register-task-definition --region eu-west-3 --cli-input-json file://./aws/task-def.json --profile <my profile>
+```
+
+I can see it on my AWS console so all good on this side!
+
+#### Service creation
+
+The blog post contains the creation of a cluster but I'll try to use the one I already have. Let's jump to the service.
+
+I needed to adapt a bit the service creation command as I needed to point to my desired cluster and change the names of the subnets and security group. I still use my default VPC so I don't need to input this I guess.
+```console
+aws ecs create-service --region eu-west-3 --cluster AwsFargateGuideCluster --service-name sample-fargate-service --task-definition sample-fargate:2 --desired-count 2 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[<my three subnets>],securityGroups=[<my default security group>]}" --profile aws-guide
+```
+PS: I did a bad manipulation so my revision number is 2 instead of 1.
+
+So my service has been created but the tasks were failing. The error was something like `CannotPullContainerError: pull image manifest has been retried 5 time(s): failed to resolve ref docker.io/library/httpd:2.4: failed to do request: Head "https://registry-1.docker.io/v2/library/httpd/manifests/2.4": dial tcp <IP>: i/o timeout`
+
+I have found this [post](https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed) with a similar error. So I am using a public subnet but I have neither a gateway, neither set `assignPublicIp` to `true`, so my task can't connect to the image registry in order to get its Docker image.
+
+I will shut down my service and create a new one with this option enabled:
+```console
+aws ecs create-service --region eu-west-3 --cluster AwsFargateGuideCluster --service-name sample-fargate-service --task-definition sample-fargate:2 --desired-count 2 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[<my three subnets>],securityGroups=[<my default security group>],assignPublicIp=ENABLED}" --assignPublicIp ENABLED --profile aws-guide
+```
+
+Okay now I have my service running, my tasks running, and I can visit the public IP of my tasks in order to get the setup HTML. Good stuff.
+
+By the way, in order to make this work, I modified the inbound rules of my default security group in order to add inbound rules for PORT 80.
+
+And since my service does not have any load balancer, I can not access my "service" directly, I need to go to the task directly. So it seems way more serious to have a load balancer in this case.
+
+#### Setting up my repository
+
+I'll add two secrets for my CI in the Github repository directly: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` that I obtain from my `AwsGuide` user on IAM. During the creation, AWS recommended another alternative for such a use case, I'll start with this but it would be interested to learn more about this alternative.
+
+Then I'll add the workflows, for this I simply go to `actions` tab of my repository, GitHub recommends me a few and a select the `Deploy to Amazon ECS`. Instead of commiting this to `main`, I'll copy the content in `.github/workflows/aws.yaml` and commit it in a dedicated PR. I update the workflow to my needs:
+- replacing the correct environment for my AWS resources,
+- removing the `environment: production` as I don't have any environment in my repository,
+- commenting the steps `build-image` and `task-def` as I don't build any Docker image for now, I then change in the last job the line `task-definition` to `task-definition: ${{ env.ECS_TASK_DEFINITION }}` in order to rely on my local file directly.
+
+I create a PR with that, I also modify the `task-def.json` content to add a change to the HTML.
 
 ## Development
 
