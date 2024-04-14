@@ -754,7 +754,13 @@ Then I'll add the workflows, for this I simply go to `actions` tab of my reposit
 - removing the `environment: production` as I don't have any environment in my repository,
 - commenting the steps `build-image` and `task-def` as I don't build any Docker image for now, I then change in the last job the line `task-definition` to `task-definition: ${{ env.ECS_TASK_DEFINITION }}` in order to rely on my local file directly.
 
-I create a PR with that, I also modify the `task-def.json` content to add a change to the HTML.
+I create a [PR](https://github.com/VGLoic/aws-exploration/pull/1) with that, I also modify the `task-def.json` content to add a change to the HTML.
+
+I merge the PR, got my [action](https://github.com/VGLoic/aws-exploration/actions/runs/8678702103/job/23796002866) running. The action was a success, good.
+
+I see my new revision of my task definition with my updated HTML, I see that my tasks are now running with the new revision. But I don't have my updated HTML when I visit the task public IP. Almost perfect.
+
+I will try to re-modify my HTML just to see what happens.
 
 ## Development
 
