@@ -1,0 +1,39 @@
+{
+    "family": "fargate-ci-guide",
+    "networkMode": "awsvpc",
+    "executionRoleArn": "arn:aws:iam::159541855776:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+        {
+            "name": "fargate-ci-guide-app",
+            "image": "159541855776.dkr.ecr.eu-west-3.amazonaws.com/aws-guide-repo:simple",
+            "cpu": 256,
+            "memory": 512,
+            "memoryReservation": 512,
+            "portMappings": [
+                {
+                    "name": "fargateciguideapp-3000-tcp",
+                    "containerPort": 3000,
+                    "hostPort": 3000,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                }
+            ],
+            "essential": true,
+            "healthCheck": {
+                "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:3000/health || exit 1"
+                ],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3
+            }
+        }
+    ],
+    "volumes": [],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512"
+}
