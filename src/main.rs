@@ -59,7 +59,8 @@ async fn main() {
 
 async fn healthcheck() -> (StatusCode, Json<HealthcheckResponse>) {
     println!("Healthcheck has been called");
-    (StatusCode::OK, Json(HealthcheckResponse { ok: true }))
+    let version = 1;
+    (StatusCode::OK, Json(HealthcheckResponse { ok: true, version }))
 }
 // async fn healthcheck(State(db): State<Pool<Postgres>>) -> (StatusCode, Json<HealthcheckResponse>) {
 //     println!("Healthcheck has been called");
@@ -77,6 +78,7 @@ async fn healthcheck() -> (StatusCode, Json<HealthcheckResponse>) {
 struct HealthcheckResponse {
     // db_ok: bool,
     ok: bool,
+    version: u8,
 }
 
 struct Config {

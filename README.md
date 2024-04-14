@@ -769,6 +769,46 @@ Okay actually it was working all along but I was only updating the `head` part o
 
 I will delete this service and I'll try to update this for our codebase now!
 
+
+### 7. Integrating a CI/CD with our app
+
+I'll try to start very simple, I want a minimal task definition and a minimal service, so no load balancer or logs or else.
+
+For this I'll start from the task definition that I used in the step 5 above, get its JSON, and try to simplify it as much as possible when taking a look at my previous task definition for the blog post app.
+
+I rename my `task-def.json` to `sample-app-task-def.json` and create the new `app-task-def.json`.
+
+So I first try to register my new task definition but it fails with `An error occurred (ClientException) when calling the RegisterTaskDefinition operation: Fargate requires task definition to have execution role ARN to support ECR images`.
+
+So originally, my imported task definition had a line `"executionRoleArn": "arn:aws:iam::<ID>:role/ecsTaskExecutionRole"`, I removed it. Now I take a better look at this task execution role on [AWS documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_execution_IAM_role.html). So my tasks need this role in order to pull the image from my ECR repository, looks fair.
+
+I add back the line `executionRoleArn` and try again. Now it fails because it says that I don't have the `iam:PassRole` policy for the `role/ecsTaskExecutionRole`. Taking a look at what [it is](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html), it is a role that is allowing me as user to give the designated role to a service. In my case, my user is not allowed to give this famous `ecsTaskExecutionRole` to my task definition. I'll try to add it directly in my user group using an inline policy. The policy is in `IAM` service and I needed to specify that it acted on the `role` `ecsTaskExecutionRole`. Now let's try again.
+
+Amazing it worked fine, I can now see my new task definition in my console.
+
+Let's create a service with it now.
+```console
+aws ecs create-service --region eu-west-3 --cluster AwsFargateGuideCluster --service-name app-fargate-service --task-definition fargate-ci-guide:1 --desired-count 2 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[<my three subnets>],securityGroups=[<my default security group>],assignPublicIp=ENABLED}" --assignPublicIp ENABLED --profile aws-guide
+```
+
+Again, no load balancer or more complex settings. Let's see if it works.
+
+I also modify my inbound rules of security group in order to allow incoming traffic to PORT 3000.
+
+And it actually works, that's great news!
+
+#### Let's setup the CI for this now!
+
+I'll modify my workflow:
+- the env variables need to be changed with new service name and app name,
+- I enabled the steps in order to build and push my docker image, and update my local definition.
+
+
+I'll update my healtcheck route to add an hardcoded `version` integer, just to be able to see the results.
+
+I create a new PR for that.
+
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
