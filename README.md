@@ -511,7 +511,8 @@ The list of steps will be updated below.
 2. [Creating a new task definition](#2-creating-a-new-task-definition),
 3. [Running as as task](#3-running-as-a-task),
 4. [Creating a service](#4-creating-a-service),
-5. [Creating a Service in default security group and Load Balancer in another security group](#5-creating-a-service-in-default-security-group-and-load-balancer-in-another-security-group).
+5. [Creating a Service in default security group and Load Balancer in another security group](#5-creating-a-service-in-default-security-group-and-load-balancer-in-another-security-group),
+6. [Integrating a CI/CD with a dummy app](#6-integrating-a-ci/cd-with-a-dummy-app).
 
 
 ### 1. Modifying my cluster, actually creating a new one
@@ -665,7 +666,7 @@ So I go to the security group part in AWS and I go for modifying my default secu
 
 I save this and try to hit on my load balancer DNS (with `/health`) and it works!
 
-### 6. Integrating a CI/CD - following the blog post
+### 6. Integrating a CI/CD with a dummy app
 
 I would now like to have some automation and try to automatically deploy my new code when I push it on the `main` branch. I found this [blog post](https://aws.amazon.com/blogs/opensource/github-actions-aws-fargate/) of AWS that introduce the main AWS Github Actions, let's dig a bit.
 
@@ -763,6 +764,10 @@ I see my new revision of my task definition with my updated HTML, I see that my 
 I will try to re-modify my HTML just to see what happens. Not working again.
 
 I will try to delete the html file before creating it.
+
+Okay actually it was working all along but I was only updating the `head` part of the HTML... But at least it works fine!
+
+I will delete this service and I'll try to update this for our codebase now!
 
 ## Development
 
