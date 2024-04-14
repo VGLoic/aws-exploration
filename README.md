@@ -760,7 +760,9 @@ I merge the PR, got my [action](https://github.com/VGLoic/aws-exploration/action
 
 I see my new revision of my task definition with my updated HTML, I see that my tasks are now running with the new revision. But I don't have my updated HTML when I visit the task public IP. Almost perfect.
 
-I will try to re-modify my HTML just to see what happens.
+I will try to re-modify my HTML just to see what happens. Not working again.
+
+I will try to delete the html file before creating it.
 
 ## Development
 
