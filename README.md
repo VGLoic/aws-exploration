@@ -512,7 +512,8 @@ The list of steps will be updated below.
 3. [Running as as task](#3-running-as-a-task),
 4. [Creating a service](#4-creating-a-service),
 5. [Creating a Service in default security group and Load Balancer in another security group](#5-creating-a-service-in-default-security-group-and-load-balancer-in-another-security-group),
-6. [Integrating a CI/CD with a dummy app](#6-integrating-a-ci/cd-with-a-dummy-app).
+6. [Integrating a CI/CD with a dummy app](#6-integrating-a-ci/cd-with-a-dummy-app),
+6. [Integrating a CI/CD with our app](#7-integrating-a-ci/cd-with-our-app),
 
 
 ### 1. Modifying my cluster, actually creating a new one
@@ -810,6 +811,11 @@ I create a new [PR](https://github.com/VGLoic/aws-exploration/pull/2) for that. 
 
 Now I would like to do the same but with a load balancer and adding the logs for my tasks.
 
+#### Adding logs
+
+My tasks did not have the logs enabled, I saw that in my previous task definitions, I had a part dedicated to logs. 
+
+I'll try to add this to my new task definition and push this so see if it works directly.
 
 ## Development
 

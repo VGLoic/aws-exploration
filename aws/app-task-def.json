@@ -19,6 +19,16 @@
                 }
             ],
             "essential": true,
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-create-group": "true",
+                    "awslogs-group": "/ecs/fargate-ci-guide",
+                    "awslogs-region": "eu-west-3",
+                    "awslogs-stream-prefix": "ecs"
+                },
+                "secretOptions": []
+            },
             "healthCheck": {
                 "command": [
                     "CMD-SHELL",
