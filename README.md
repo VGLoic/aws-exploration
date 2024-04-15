@@ -817,6 +817,12 @@ My tasks did not have the logs enabled, I saw that in my previous task definitio
 
 I'll try to add this to my new task definition and push this so see if it works directly.
 
+So it failed, I am apparently missing the `logs:CreateLogGroup` policy. Let's take a look.
+
+I added this policy to my `ecsTaskExecutionRole`, as I understand, it should be this role (that is given to the task) that should have this policy, so that's why I put it on the `ecsTaskExecutionRole`.
+
+And now it works fine, I can see the logs. Okay that's good!
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
