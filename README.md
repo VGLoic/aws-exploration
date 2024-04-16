@@ -789,7 +789,7 @@ Amazing it worked fine, I can now see my new task definition in my console.
 
 Let's create a service with it now.
 ```console
-aws ecs create-service --region eu-west-3 --cluster AwsFargateGuideCluster --service-name app-fargate-service --task-definition fargate-ci-guide:1 --desired-count 2 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[<my three subnets>],securityGroups=[<my default security group>],assignPublicIp=ENABLED}" --assignPublicIp ENABLED --profile aws-guide
+aws ecs create-service --region eu-west-3 --cluster AwsFargateGuideCluster --service-name app-fargate-service --task-definition fargate-ci-guide:1 --desired-count 2 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[<my three subnets>],securityGroups=[<my default security group>],assignPublicIp=ENABLED}" --profile aws-guide
 ```
 
 Again, no load balancer or more complex settings. Let's see if it works.
@@ -822,6 +822,28 @@ So it failed, I am apparently missing the `logs:CreateLogGroup` policy. Let's ta
 I added this policy to my `ecsTaskExecutionRole`, as I understand, it should be this role (that is given to the task) that should have this policy, so that's why I put it on the `ecsTaskExecutionRole`.
 
 And now it works fine, I can see the logs. Okay that's good!
+
+#### Adding a load balancer
+
+I would also like to add a load balancer and disable the exposure of my tasks. I want a load balancer in the default security group for simplicity.
+
+So let's take a look at the options in the [create-service command](https://docs.aws.amazon.com/cli/latest/reference/ecs/create-service.html).
+
+There is a `--load-balancers` option, looks a bit complicated but let's try it.
+
+```console
+aws ecs create-service --region eu-west-3 --cluster AwsFargateGuideCluster --service-name app-fargate-service --task-definition fargate-ci-guide:<my revision number> --desired-count 2 --launch-type "FARGATE" --network-configuration "awsvpcConfiguration={subnets=[<my three subnets>],securityGroups=[<my default security group>],assignPublicIp=ENABLED}" --load-balancers targetGroupArn=<my target group ARN>,containerName=fargate-ci-guide-app,containerPort=3000 --profile aws-guide
+```
+
+Okay it does not work, as I understand, I need to create a load balancer beforehand, link it to my target group, and then it would work.
+
+Let's do that, I'll go to my Target Group part of AWS console, and there is an action `Associate with a new load balancer`. I'll skip the creation details as it is similar to before.
+
+So now that I have my load balancer, I can try again my command. This time the command worked!
+
+Now let's see if I have my tasks and if I can access it using my load balancer. Everything works fine! Now let's destroy the service and recreate it but without the `assignPublicIp`.
+
+Okay so it failed with `ResourceInitializationError: unable to pull secrets or registry auth: execution resource retrieval failed: unable to retrieve ecr registry auth: service call has been retried 3 time(s): RequestError: send request failed caused by: Post "https://api.ecr.eu-west-3.amazonaws.com/": dial tcp 35.180.245.30:443: i/o timeout. Please check your task network configuration.`. Let's take a look!
 
 ## Development
 
