@@ -4,7 +4,8 @@ The goal of this repository is to implement a basic web server, deploy it on AWS
 
 Here are the big steps that have been taken in this repository
 1. [Deploying for a first time](#deploying-for-a-first-time),
-2. [Trying AWS Fargate instead of EC2 instances](#trying-aws-fargate-instead-of-ec2-instances).
+2. [Trying AWS Fargate instead of EC2 instances](#trying-aws-fargate-instead-of-ec2-instances),
+3. [Infrastructure as code using Terraform](#infrastructure-as-code-using-terraform).
 
 ## Service description
 
@@ -513,7 +514,7 @@ The list of steps will be updated below.
 4. [Creating a service](#4-creating-a-service),
 5. [Creating a Service in default security group and Load Balancer in another security group](#5-creating-a-service-in-default-security-group-and-load-balancer-in-another-security-group),
 6. [Integrating a CI/CD with a dummy app](#6-integrating-a-ci/cd-with-a-dummy-app),
-6. [Integrating a CI/CD with our app](#7-integrating-a-ci/cd-with-our-app),
+7. [Integrating a CI/CD with our app](#7-integrating-a-ci/cd-with-our-app),
 
 
 ### 1. Modifying my cluster, actually creating a new one
@@ -861,6 +862,17 @@ It actually does not work. I read more carefully the [documentation](https://doc
 - s3: `com.amazonaws.eu-west-3.s3` of type `gateway`(this one is needed as part of the images are on this).
 
 With all that, my tasks are running, but without internet access, they just have direct connections to the needed AWS services through these VPC endpoints, pretty nice!
+
+
+## Infrastructure as code using Terraform
+
+So I already learned a lot of interesting things but now I would like to be able to automate even more things. Currently, the CI only works if I have my cluster and my service ready, which also implies a load balancer and possibly a database. I would like to automate everything in such a way that I don't need to prepare all this before leveraging my CI.
+
+As I understand, this is why tools like [Terraform](https://developer.hashicorp.com/terraform) exist. I should be able to define what I want in AWS using code, and then use Terraform to setup all that consistenly, repeatably, automatically and efficiently.
+
+For this new work, I will first start with the [Get started with AWS on Terraform series](https://developer.hashicorp.com/terraform/tutorials/aws-get-started).
+
+
 
 ## Development
 
