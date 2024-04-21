@@ -839,11 +839,28 @@ Okay it does not work, as I understand, I need to create a load balancer beforeh
 
 Let's do that, I'll go to my Target Group part of AWS console, and there is an action `Associate with a new load balancer`. I'll skip the creation details as it is similar to before.
 
-So now that I have my load balancer, I can try again my command. This time the command worked!
+So now that I have my load balancer, I can try again my command. This time the command worked!e
 
 Now let's see if I have my tasks and if I can access it using my load balancer. Everything works fine! Now let's destroy the service and recreate it but without the `assignPublicIp`.
 
 Okay so it failed with `ResourceInitializationError: unable to pull secrets or registry auth: execution resource retrieval failed: unable to retrieve ecr registry auth: service call has been retried 3 time(s): RequestError: send request failed caused by: Post "https://api.ecr.eu-west-3.amazonaws.com/": dial tcp 35.180.245.30:443: i/o timeout. Please check your task network configuration.`. Let's take a look!
+
+So I found some pages that talk about this ([here](https://stackoverflow.com/questions/61265108/aws-ecs-fargate-resourceinitializationerror-unable-to-pull-secrets-or-registry) and [there](https://repost.aws/questions/QUvcwWlXxiT5qSq5-Gjxf0pg/how-to-to-launch-ecs-fargate-container-without-public-ip)), I also found [AWS documentation about task networking](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-task-networking.html). As I understand, by default a task does have a private IP and does not have a route to the internet and therefore not in my private ECR (which is actually outside of my VPC as I understand). The possible solutions I understand are:
+- if I have a public subnet (which I have), I can enable `auto assign Public IP`. My task will then have a public IP that should be sufficient to talk within the VPC. If they would need to download from a public registry (like Docker Hub), it would be possible that I need to update my security group rules.
+- I can setup an [AWS VPC endpoint](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html) in order to allow a connection (like the image pull) from my private ECR to the private IP address of the task in my VPC,
+- I can setup a `Network Address Translation (NAT) gateway`(https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html) in my VPC. It would allow the private IPs of my tasks to connect to services outside my VPC (and also my ECR) without letting those services initiating a connection with my tasks.
+
+I found a [good video](https://www.youtube.com/watch?v=jo3X_aay4Vs) of my guy related to this.
+
+I'll first try with the AWS VPC endpoint as I am not really comfortable with the NAT Gateway. I'll use my root user for this, I go to `VPC Endpoint` and create one. I'll give it a name `ecr-api`. For the `category`, I will pick `AWS services`, it seems a bit generic but I am not sure that the others are really what I want. Now for the `Services`, I will pick only `com.amazonaws.eu-west-3.ecr.api` as I think I need only this one, I hope at least. I'll then pick my default VPC, default security group, my three subnets. And give a full access for my `Policy`.
+
+It actually does not work. I read more carefully the [documentation](https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html) and I actually need multiple endpoints:
+- ecr-api: `com.amazonaws.eu-west-3.ecr.api` of type `interface`,
+- ecr-dkr: `com.amazonaws.eu-west-3.ecr.dkr` of type `interface`,
+- logs: `com.amazonaws.eu-west-3.logs` of type `interface` (since I want logs for my task),
+- s3: `com.amazonaws.eu-west-3.s3` of type `gateway`(this one is needed as part of the images are on this).
+
+With all that, my tasks are running, but without internet access, they just have direct connections to the needed AWS services through these VPC endpoints, pretty nice!
 
 ## Development
 
