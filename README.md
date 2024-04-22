@@ -870,8 +870,98 @@ So I already learned a lot of interesting things but now I would like to be able
 
 As I understand, this is why tools like [Terraform](https://developer.hashicorp.com/terraform) exist. I should be able to define what I want in AWS using code, and then use Terraform to setup all that consistenly, repeatably, automatically and efficiently.
 
-For this new work, I will first start with the [Get started with AWS on Terraform series](https://developer.hashicorp.com/terraform/tutorials/aws-get-started).
+For this new work, I will first start with the [Get started with AWS on Terraform series](https://developer.hashicorp.com/terraform/tutorials/aws-get-started). So with this, I learned how to setup Terraform, setup the AWS provider and use it in order to create an EC2 instance, and I put all that in Terraform Cloud. 
 
+
+### 1. Creating my cluster
+
+So now I would like to use Terraform in order to create my cluster. I would like a cluster with Fargate, quite similar to the one I already have.
+
+I will put my terraform code in the `terraform` folder. I will follow the [documentation here](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_cluster) and compare with my existing cluster.
+
+Okay I end up with this for my `main.tf`
+```terraform
+terraform {
+  cloud {
+    organization = "slourp-org"
+    workspaces {
+      name = "ecs-fargate-guide"
+    }
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.16"
+    }
+  }
+
+  required_version = ">= 1.2.0"
+}
+
+provider "aws" {
+  region = "eu-west-3"
+}
+
+resource "aws_ecs_cluster" "app_cluster" {
+  name = var.cluster_name
+}
+
+resource "aws_ecs_cluster_capacity_providers" "fargate" {
+  cluster_name = aws_ecs_cluster.app_cluster.name
+
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+}
+```
+
+I still want to use `Terraform Cloud` so I'll let the cloud provider with my organisation. The cluster is very simple as I let most of the options as default, I only specify my capacity provider with the Fargate ones.
+
+I apply the changes `terraform apply`, and I have my cluster, looks very good.
+
+### 2. Exploring task definition
+
+Let's see if I can declare my task definition now.
+
+I will go to the [associated documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition). I see that there are some way to use a declared file, but it does not seem I can directly using it.
+
+I also see that there is a difference between `resource` and `data source` in Terraform. From the documentation about [data source](https://developer.hashicorp.com/terraform/language/data-sources)
+> Data sources allow Terraform to use information defined outside of Terraform, defined by another separate Terraform configuration, or modified by functions.
+
+I'll start with a data source I think, I'll move this to a dedicated resource but later on. Right now I would like to simply access my existing task defintion.
+
+The documentation also contains some quick explanation on how to launch a service associated with it, I'll go for that.
+
+Actually I needed to add a few things to make everything work. In particular, some data sources about my default `VPC` and the associated default subnets.
+
+I therefore added
+```terraform
+data "aws_ecs_task_definition" "service" {
+  task_definition = "fargate-ci-guide"
+}
+
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {}
+
+resource "aws_ecs_service" "service" {
+  name          = "app-service"
+  cluster       = aws_ecs_cluster.app_cluster.id
+  desired_count = 2
+
+  task_definition = data.aws_ecs_task_definition.service.arn
+
+  launch_type = "FARGATE"
+
+  network_configuration {
+    subnets          = data.aws_subnets.default.ids
+    assign_public_ip = true
+  }
+}
+```
+
+Once I applied all this, I have my cluster, my service and 2 tasks running with the latest version of my task definition, pretty neat!
 
 
 ## Development
