@@ -963,6 +963,72 @@ resource "aws_ecs_service" "service" {
 
 Once I applied all this, I have my cluster, my service and 2 tasks running with the latest version of my task definition, pretty neat!
 
+### 3. Adding a load balancer
+
+I would like to add a load balancer for my service, I'll take a look at the [service config](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_service) and the [load balancer one](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb).
+
+Let's start with my load balancer, I will put it in my default security group and with my default subnets.
+
+```terraform
+resource "aws_lb" "app_lb" {
+  name               = "app-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [data.aws_security_group.default.id]
+  subnets            = data.aws_subnets.default.ids
+}
+
+resource "aws_lb_target_group" "app_target_group" {
+  name        = "app-target-group"
+  port        = 3000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = data.aws_vpc.default.id
+
+  health_check {
+    path = "/health"
+  }
+}
+
+resource "aws_lb_listener" "app_listener" {
+  load_balancer_arn = aws_lb.app_lb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_target_group.arn
+  }
+}
+```
+We re-create what we previously created using the AWS console, but this time with code. It looks pretty good for now!
+
+Now we can update our service with our load balancer that will be created
+```terraform
+resource "aws_ecs_service" "service" {
+  name          = "app-service"
+  cluster       = aws_ecs_cluster.app_cluster.id
+  desired_count = 2
+
+  task_definition = data.aws_ecs_task_definition.service.arn
+
+  launch_type = "FARGATE"
+
+  network_configuration {
+    subnets          = data.aws_subnets.default.ids
+    security_groups  = [data.aws_security_group.default.id]
+    assign_public_ip = true
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app_target_group.arn
+    container_name   = "fargate-ci-guide-app"
+    container_port   = 3000
+  }
+}
+```
+
+Not gonna lie, I had a few bumps but quite easy to solve. Now everything works so quite happy!
 
 ## Development
 
