@@ -27,6 +27,7 @@
 name: Deploy to Amazon ECS
 
 on:
+  pull_request:
   push:
     branches: [ "main" ]
 
@@ -39,6 +40,10 @@ env:
                                            # file, e.g. .aws/task-definition.json
   CONTAINER_NAME: fargate-ci-guide-app     # set this to the name of the container in the
                                            # containerDefinitions section of your task definition
+  TF_CLOUD_ORGANIZATION: "slourp-org"
+  TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
+  TF_WORKSPACE: "learn-terraform-gh-actions"
+  CONFIG_DIRECTORY: "./terraform"
 
 permissions:
   contents: read
@@ -84,10 +89,41 @@ jobs:
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
-    - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+    # - name: Deploy Amazon ECS task definition
+    #   uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+    #   with:
+    #     task-definition: ${{ steps.task-def.outputs.task-definition }}
+    #     service: ${{ env.ECS_SERVICE }}
+    #     cluster: ${{ env.ECS_CLUSTER }}
+    #     wait-for-service-stability: true
+
+    - name: Upload Terraform configuration
+      uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
+      id: upload-tf-config
       with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: ${{ env.ECS_SERVICE }}
-        cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
+        workspace: ${{ env.TF_WORKSPACE }}
+        directory: ${{ env.CONFIG_DIRECTORY }}
+        speculative: true
+
+    - name: Create Terraform plan run
+      uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
+      id: plan-run
+      with:
+        workspace: ${{ env.TF_WORKSPACE }}
+        configuration_version: ${{ steps.upload-tf-config.outputs.configuration_version_id }}
+        plan_only: true
+
+    - name: Create Apply Run
+      uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
+      id: apply-run
+      with:
+        workspace: ${{ env.TF_WORKSPACE }}
+        configuration_version: ${{ steps.upload-tf-config.outputs.configuration_version_id }}
+
+    - name: Apply
+      uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.0.0
+      if: fromJSON(steps.apply-run.outputs.payload).data.attributes.actions.IsConfirmable
+      id: apply
+      with:
+        run: ${{ steps.apply-run.outputs.run_id }}
+        comment: "Apply Run from GitHub Actions CI ${{ github.sha }}"

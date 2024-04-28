@@ -2,7 +2,7 @@ terraform {
   cloud {
     organization = "slourp-org"
     workspaces {
-      name = "ecs-fargate-guide"
+      name = "learn-terraform-gh-actions"
     }
   }
 
