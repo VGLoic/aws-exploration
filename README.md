@@ -872,6 +872,11 @@ As I understand, this is why tools like [Terraform](https://developer.hashicorp.
 
 For this new work, I will first start with the [Get started with AWS on Terraform series](https://developer.hashicorp.com/terraform/tutorials/aws-get-started). So with this, I learned how to setup Terraform, setup the AWS provider and use it in order to create an EC2 instance, and I put all that in Terraform Cloud. 
 
+Here are the list of steps
+1. [Creating my cluster](#1-creating-my-cluster),
+2. [Exploring task definition](#2-exploring-task-definition),
+3. [Adding a load balancer](#3-adding-a-load-balancer),
+4. [Removing public IP from tasks](#4-removing-public-ip-from-tasks).
 
 ### 1. Creating my cluster
 
@@ -1028,7 +1033,61 @@ resource "aws_ecs_service" "service" {
 }
 ```
 
-Not gonna lie, I had a few bumps but quite easy to solve. Now everything works so quite happy!
+Not gonna lie, I had a few bumps but quite OK to solve. Now everything works so quite happy!
+
+### 4. Removing public IP from tasks
+
+So now I would like to remove the `assign_public_ip = true`, I already know I will need the `AWS VPC endpoints` defined previously. I take a look at the [documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint) and here we go.
+
+So I modified the `assign_public_ip` to false and I added the following
+```terraform
+##################################################################
+################### DECLARING MY VPC ENDPOINTS ###################
+##################################################################
+
+data "aws_route_table" "default" {
+  vpc_id = data.aws_vpc.default.id
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = data.aws_vpc.default.id
+  service_name      = "com.amazonaws.eu-west-3.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [data.aws_route_table.default.id]
+}
+
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = data.aws_vpc.default.id
+  service_name        = "com.amazonaws.eu-west-3.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = data.aws_subnets.default.ids
+  security_group_ids  = [data.aws_security_group.default.id]
+  private_dns_enabled = true
+}
+
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = data.aws_vpc.default.id
+  service_name        = "com.amazonaws.eu-west-3.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = data.aws_subnets.default.ids
+  security_group_ids  = [data.aws_security_group.default.id]
+  private_dns_enabled = true
+}
+
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = data.aws_vpc.default.id
+  service_name        = "com.amazonaws.eu-west-3.logs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = data.aws_subnets.default.ids
+  security_group_ids  = [data.aws_security_group.default.id]
+  private_dns_enabled = true
+}
+```
+
+Everything was quite straightforward based on what I made before. The thing that took me a few hours of debugging was the `privacy_dns_enabled = true` param which was needed, as they say in the doc
+> Most users will want this enabled to allow services within the VPC to automatically use the endpoint
+
+Making good progress, that's nice!
 
 ## Development
 

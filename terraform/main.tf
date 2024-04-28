@@ -107,7 +107,7 @@ resource "aws_ecs_service" "service" {
   network_configuration {
     subnets          = data.aws_subnets.default.ids
     security_groups  = [data.aws_security_group.default.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 
   load_balancer {
@@ -115,4 +115,46 @@ resource "aws_ecs_service" "service" {
     container_name   = "fargate-ci-guide-app"
     container_port   = 3000
   }
+}
+
+##################################################################
+################### DECLARING MY VPC ENDPOINTS ###################
+##################################################################
+
+data "aws_route_table" "default" {
+  vpc_id = data.aws_vpc.default.id
+}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = data.aws_vpc.default.id
+  service_name      = "com.amazonaws.eu-west-3.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [data.aws_route_table.default.id]
+}
+
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = data.aws_vpc.default.id
+  service_name        = "com.amazonaws.eu-west-3.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = data.aws_subnets.default.ids
+  security_group_ids  = [data.aws_security_group.default.id]
+  private_dns_enabled = true
+}
+
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = data.aws_vpc.default.id
+  service_name        = "com.amazonaws.eu-west-3.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = data.aws_subnets.default.ids
+  security_group_ids  = [data.aws_security_group.default.id]
+  private_dns_enabled = true
+}
+
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = data.aws_vpc.default.id
+  service_name        = "com.amazonaws.eu-west-3.logs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = data.aws_subnets.default.ids
+  security_group_ids  = [data.aws_security_group.default.id]
+  private_dns_enabled = true
 }
