@@ -113,14 +113,14 @@ jobs:
         configuration_version: ${{ steps.upload-tf-config.outputs.configuration_version_id }}
         plan_only: true
 
-    - name: Create Apply Run
+    - name: Create Terraform apply run
       uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
       id: apply-run
       with:
         workspace: ${{ env.TF_WORKSPACE }}
         configuration_version: ${{ steps.upload-tf-config.outputs.configuration_version_id }}
 
-    - name: Apply
+    - name: Terraform apply
       uses: hashicorp/tfc-workflows-github/actions/apply-run@v1.0.0
       if: fromJSON(steps.apply-run.outputs.payload).data.attributes.actions.IsConfirmable
       id: apply
