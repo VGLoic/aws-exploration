@@ -103,17 +103,8 @@ jobs:
       with:
         workspace: ${{ env.TF_WORKSPACE }}
         directory: ${{ env.CONFIG_DIRECTORY }}
-        speculative: true
 
-    - name: Create Terraform plan run
-      uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
-      id: plan-run
-      with:
-        workspace: ${{ env.TF_WORKSPACE }}
-        configuration_version: ${{ steps.upload-tf-config.outputs.configuration_version_id }}
-        plan_only: true
-
-    - name: Create Terraform apply run
+    - name: Terraform plan
       uses: hashicorp/tfc-workflows-github/actions/create-run@v1.0.0
       id: apply-run
       with:
