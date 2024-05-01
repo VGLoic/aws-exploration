@@ -1125,6 +1125,7 @@ But if I separate the terraform code from the app code, I would strongly conside
 And on the code repository, I would have:
 - on push on main: push image to ECR, create new task revision, update service (if up).
 
+In another commit, I will revert my changes as I don't want to create my whole infrastructure on push on `main`.
 
 ## Development
 

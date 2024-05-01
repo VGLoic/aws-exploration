@@ -27,7 +27,6 @@
 name: Deploy to Amazon ECS
 
 on:
-  pull_request:
   push:
     branches: [ "main" ]
 
@@ -88,12 +87,8 @@ jobs:
         task-definition: ${{ env.ECS_TASK_DEFINITION }}
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
-
-    - name: Print output of task def
-      run: |
-        echo "hello world=${{ steps.task-def.outputs.task-definition }}"
     
-    - name: Create new task definition revision
+    - name: Create new task definition revision on ECS
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
