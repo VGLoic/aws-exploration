@@ -876,7 +876,10 @@ Here are the list of steps
 1. [Creating my cluster](#1-creating-my-cluster),
 2. [Exploring task definition](#2-exploring-task-definition),
 3. [Adding a load balancer](#3-adding-a-load-balancer),
-4. [Removing public IP from tasks](#4-removing-public-ip-from-tasks).
+4. [Removing public IP from tasks](#4-removing-public-ip-from-tasks),
+5. [Running in CI](#5-running-in-ci),
+6. [Stop using default resources](#6-stop-using-default-resources)
+
 
 ### 1. Creating my cluster
 
@@ -1126,6 +1129,99 @@ And on the code repository, I would have:
 - on push on main: push image to ECR, create new task revision, update service (if up).
 
 In another commit, I will revert my changes as I don't want to create my whole infrastructure on push on `main`.
+
+### 6. Stop using default resources
+
+I now would like to not rely on default resources of AWS. So I would like to create everything from scratch, VPC, subnets, security groups etc...
+
+I have found a [nice first article](https://spacelift.io/blog/terraform-aws-vpc) talking about creating a VPC from scratch with Terraform, I'm gonna start with that.
+
+Disclaimer: I found that Terraform exposes some [already made `modules` for AWS VPC](https://github.com/terraform-aws-modules/terraform-aws-vpc), I think that for serious projects, I would go with that instead of creating a new one from scratch.
+
+The first step was to create the VPC, the public and private subnets, the route tables and the internet gateway. The Terraform code looks like as follows
+```ts
+###########################################
+################### VPC ###################
+###########################################
+
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "AWS Fargate Guide VPC"
+  }
+}
+
+resource "aws_subnet" "public_subnets" {
+  count             = length(var.public_subnet_cidrs)
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = element(var.public_subnet_cidrs, count.index)
+  availability_zone = element(var.azs, count.index)
+
+  tags = {
+    Name = "Public Subnet ${count.index + 1}"
+  }
+}
+
+resource "aws_subnet" "private_subnets" {
+  count             = length(var.private_subnet_cidrs)
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = element(var.private_subnet_cidrs, count.index)
+  availability_zone = element(var.azs, count.index)
+
+  tags = {
+    Name = "Private Subnet ${count.index + 1}"
+  }
+}
+
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "AWS Fargate Guide VPC IG"
+  }
+}
+
+resource "aws_route_table" "rt_for_internet" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.gw.id
+  }
+
+  tags = {
+    Name = "Route Table for internet access"
+  }
+}
+
+resource "aws_route_table_association" "public_subnet_association" {
+  count          = length(var.public_subnet_cidrs)
+  subnet_id      = element(aws_subnet.public_subnets[*].id, count.index)
+  route_table_id = aws_route_table.rt_for_internet.id
+}
+```
+
+It was interesting to apply step by step the changes and follow on the AWS console in order to understand what resource we create and with which links.
+
+I also check the Security Group and I saw that I had a default one associated to my default VPC.
+
+I will try to deploy my stack with that. I will start by using only the public subnets. And I also add an inbound rule to my default security group in order to allow traffic to port 80. 
+
+In terms of code, I copy pasted what I had before but making some adjustements:
+- I had to add `enable_dns_support = true` and `enable_dns_hostnames = true` for my VPC, it was needed for the VPC endpoints,
+- I updated my `aws_security_group` data by specifying the VPC I wanted, i.e. `vpc_id = aws_vpc.main.id`,
+- I used my VPC everywhere I could with `vpc_id = aws_vpc.main.id`,
+- I updated the `subnets` attributes with `[for subnet in aws_subnet.public_subnets : subnet.id]`,
+- I used my second route table for the `s3 VPC Endpoint`, i.e. `route_table_ids   = [aws_route_table.rt_for_internet.id]`.
+
+Everything is working well with that.
+
+Now I try to use my private subnets for my ECS service but I keep my public subnets for my Load Balancer, let's see what is happening. I am still using my default security group.
+
+I had an issue with the endpoints because I was considering the route table I created for my public subnets while I needed to take the other route tables, the one for the private subnets.
+
+Other than that, it is working well!
 
 ## Development
 
