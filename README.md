@@ -1089,6 +1089,44 @@ Everything was quite straightforward based on what I made before. The thing that
 
 Making good progress, that's nice!
 
+### 5. Running in CI
+
+I would like to update my CI now. I would like to have a GitHub action that allows me to trigger a `terraform apply` or something like that. I don't necessarily want to update everything on push to `main` as I don't want my environment always up.
+
+Let's see what I can do.
+
+I started with this [page on Terraform talking about automation](https://developer.hashicorp.com/terraform/tutorials/automation/automate-terraform). Having a proper way of reviewing the changes, i.e. putting human verification between `terraform plan` and `terraform apply`, is actually non trivial. In this case, it seems that relying on something like Terraform Cloud actually helps a lot as it allows me to properly orchestrate the proposals.
+
+I continue with the [specific page for GitHub actions](https://developer.hashicorp.com/terraform/tutorials/automation/github-actions). It's interesting. It actually looks like my situation will not be that straightforward to handle. The issue is that I need to push my new action to AWS ECR, create my new task definition revision and then I would like my plan to use it.
+
+One way would be to use Terraform "only" for setting up the infrastructure. Then I would use my current workflow to push to ECR, create my task definition revision and update my ECS service with it.
+
+I will start very simple, not necessarily what I want but simple. I'll update my existing workflow in order to plan and apply my infrastructures on `push` on `main`, so it should go something as
+1. push image to ECR,
+2. create new task definition revision,
+3. plan the changes the new task definition revision,
+4. apply the plan.
+
+Basically, I remove the `Deploy Amazon ECS task definition` step from before and replace it with Terraform.
+
+So I followed the documentation and it worked well, I have the updates contained in this [PR](https://github.com/VGLoic/aws-exploration/pull/3).
+
+In terms of workflow though, I'm not sure this is what I want, in particular for this kind of repository.
+
+On a more serious project (but still simple), I would probably dissociate the setup of the whole cluster from the update of the service. If I would keep the terraform setup within the repository I could have
+- one workflow dispatch for creating a fresh plan and applying it,
+- one workflow dispatch for destroying the infrastructure,
+- on PR: preview plan,
+- on push on main: push image to ECR, create new task revision, update service (if up).
+
+But if I separate the terraform code from the app code, I would strongly consider the "recommended" [Version Control System driven workflow](https://developer.hashicorp.com/terraform/tutorials/cloud-get-started/cloud-vcs-change) of HCP Terraform (new name of Terraform Cloud). With that I would have on the new repository:
+- on PR: preview plan,
+- on push on main: apply plan.
+And on the code repository, I would have:
+- on push on main: push image to ECR, create new task revision, update service (if up).
+
+In another commit, I will revert my changes as I don't want to create my whole infrastructure on push on `main`.
+
 ## Development
 
 This repository uses the [rust language](https://www.rust-lang.org/), make sure to have it installed before going further. Installation instructions can be found [here](https://www.rust-lang.org/tools/install).
