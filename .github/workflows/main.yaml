@@ -89,6 +89,10 @@ jobs:
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
 
+    - name: Print output of task def
+      run: |
+        echo "hello world=${{ steps.task-def.outputs.task-definition }}"
+
     # - name: Upload Terraform configuration
     #   uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
     #   id: upload-tf-config
