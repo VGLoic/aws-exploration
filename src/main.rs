@@ -59,7 +59,7 @@ async fn main() {
 
 async fn healthcheck() -> (StatusCode, Json<HealthcheckResponse>) {
     println!("Healthcheck has been called");
-    let version = 3;
+    let version = 4;
     (StatusCode::OK, Json(HealthcheckResponse { ok: true, version }))
 }
 // async fn healthcheck(State(db): State<Pool<Postgres>>) -> (StatusCode, Json<HealthcheckResponse>) {

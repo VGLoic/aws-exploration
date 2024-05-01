@@ -1109,6 +1109,21 @@ I will start very simple, not necessarily what I want but simple. I'll update my
 
 Basically, I remove the `Deploy Amazon ECS task definition` step from before and replace it with Terraform.
 
+So I followed the documentation and it worked well, I have the updates contained in this [PR](https://github.com/VGLoic/aws-exploration/pull/3).
+
+In terms of workflow though, I'm not sure this is what I want, in particular for this kind of repository.
+
+On a more serious project (but still simple), I would probably dissociate the setup of the whole cluster from the update of the service. If I would keep the terraform setup within the repository I could have
+- one workflow dispatch for creating a fresh plan and applying it,
+- one workflow dispatch for destroying the infrastructure,
+- on PR: preview plan,
+- on push on main: push image to ECR, create new task revision, update service (if up).
+
+But if I separate the terraform code from the app code, I would strongly consider the "recommended" [Version Control System driven workflow](https://developer.hashicorp.com/terraform/tutorials/cloud-get-started/cloud-vcs-change) of HCP Terraform (new name of Terraform Cloud). With that I would have on the new repository:
+- on PR: preview plan,
+- on push on main: apply plan.
+And on the code repository, I would have:
+- on push on main: push image to ECR, create new task revision, update service (if up).
 
 
 ## Development
