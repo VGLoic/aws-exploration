@@ -93,12 +93,10 @@ jobs:
       run: |
         echo "hello world=${{ steps.task-def.outputs.task-definition }}"
     
-    - name: Deploy to Amazon ECS service
+    - name: Create new task definition revision
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: app-service
-        cluster: AppCluster
 
     # - name: Upload Terraform configuration
     #   uses: hashicorp/tfc-workflows-github/actions/upload-configuration@v1.0.0
