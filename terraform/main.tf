@@ -88,9 +88,46 @@ resource "aws_route_table_association" "public_subnet_association" {
   route_table_id = aws_route_table.rt_for_internet.id
 }
 
-data "aws_security_group" "default" {
-  vpc_id = aws_vpc.main.id
-  name   = "default"
+######################################################
+################### SECURITY GROUP ###################
+######################################################
+
+resource "aws_security_group" "allow_traffic" {
+  name        = "AwsFargateGuide Allow Traffic VPC"
+  description = "Allow all outbound traffic, allow inbound traffic within a VPC, allow inbound traffic on port 80"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "AwsFargate Allow Traffic VPC"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_ipv4_port_80" {
+  security_group_id = aws_security_group.allow_traffic.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_ipv6_port_80" {
+  security_group_id = aws_security_group.allow_traffic.id
+  cidr_ipv6         = "::/0"
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_all_traffic_within_security_group" {
+  security_group_id            = aws_security_group.allow_traffic.id
+  ip_protocol                  = "-1"
+  referenced_security_group_id = aws_security_group.allow_traffic.id
+}
+
+resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_ipv4" {
+  security_group_id = aws_security_group.allow_traffic.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1" # semantically equivalent to all ports
 }
 
 ############################################################
@@ -127,7 +164,7 @@ resource "aws_lb" "app_lb" {
   name               = "app-lb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [data.aws_security_group.default.id]
+  security_groups    = [aws_security_group.allow_traffic.id]
   subnets            = [for subnet in aws_subnet.public_subnets : subnet.id]
 
   tags = {
@@ -181,7 +218,7 @@ resource "aws_ecs_service" "service" {
 
   network_configuration {
     subnets          = [for subnet in aws_subnet.private_subnets : subnet.id]
-    security_groups  = [data.aws_security_group.default.id]
+    security_groups  = [aws_security_group.allow_traffic.id]
     assign_public_ip = false
   }
 
@@ -224,7 +261,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
   service_name        = "com.amazonaws.eu-west-3.ecr.api"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [for subnet in aws_subnet.private_subnets : subnet.id]
-  security_group_ids  = [data.aws_security_group.default.id]
+  security_group_ids  = [aws_security_group.allow_traffic.id]
   private_dns_enabled = true
 
   tags = {
@@ -237,7 +274,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
   service_name        = "com.amazonaws.eu-west-3.ecr.dkr"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [for subnet in aws_subnet.private_subnets : subnet.id]
-  security_group_ids  = [data.aws_security_group.default.id]
+  security_group_ids  = [aws_security_group.allow_traffic.id]
   private_dns_enabled = true
 
   tags = {
@@ -250,7 +287,7 @@ resource "aws_vpc_endpoint" "logs" {
   service_name        = "com.amazonaws.eu-west-3.logs"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [for subnet in aws_subnet.private_subnets : subnet.id]
-  security_group_ids  = [data.aws_security_group.default.id]
+  security_group_ids  = [aws_security_group.allow_traffic.id]
   private_dns_enabled = true
 
   tags = {

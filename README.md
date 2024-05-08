@@ -888,7 +888,7 @@ So now I would like to use Terraform in order to create my cluster. I would like
 I will put my terraform code in the `terraform` folder. I will follow the [documentation here](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_cluster) and compare with my existing cluster.
 
 Okay I end up with this for my `main.tf`
-```terraform
+```tf
 terraform {
   cloud {
     organization = "slourp-org"
@@ -942,7 +942,7 @@ The documentation also contains some quick explanation on how to launch a servic
 Actually I needed to add a few things to make everything work. In particular, some data sources about my default `VPC` and the associated default subnets.
 
 I therefore added
-```terraform
+```tf
 data "aws_ecs_task_definition" "service" {
   task_definition = "fargate-ci-guide"
 }
@@ -977,7 +977,7 @@ I would like to add a load balancer for my service, I'll take a look at the [ser
 
 Let's start with my load balancer, I will put it in my default security group and with my default subnets.
 
-```terraform
+```tf
 resource "aws_lb" "app_lb" {
   name               = "app-lb"
   internal           = false
@@ -1012,7 +1012,7 @@ resource "aws_lb_listener" "app_listener" {
 We re-create what we previously created using the AWS console, but this time with code. It looks pretty good for now!
 
 Now we can update our service with our load balancer that will be created
-```terraform
+```tf
 resource "aws_ecs_service" "service" {
   name          = "app-service"
   cluster       = aws_ecs_cluster.app_cluster.id
@@ -1043,7 +1043,7 @@ Not gonna lie, I had a few bumps but quite OK to solve. Now everything works so 
 So now I would like to remove the `assign_public_ip = true`, I already know I will need the `AWS VPC endpoints` defined previously. I take a look at the [documentation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint) and here we go.
 
 So I modified the `assign_public_ip` to false and I added the following
-```terraform
+```tf
 ##################################################################
 ################### DECLARING MY VPC ENDPOINTS ###################
 ##################################################################
@@ -1139,7 +1139,7 @@ I have found a [nice first article](https://spacelift.io/blog/terraform-aws-vpc)
 Disclaimer: I found that Terraform exposes some [already made `modules` for AWS VPC](https://github.com/terraform-aws-modules/terraform-aws-vpc), I think that for serious projects, I would go with that instead of creating a new one from scratch.
 
 The first step was to create the VPC, the public and private subnets, the route tables and the internet gateway. The Terraform code looks like as follows
-```ts
+```tf
 ###########################################
 ################### VPC ###################
 ###########################################
@@ -1222,6 +1222,63 @@ Now I try to use my private subnets for my ECS service but I keep my public subn
 I had an issue with the endpoints because I was considering the route table I created for my public subnets while I needed to take the other route tables, the one for the private subnets.
 
 Other than that, it is working well!
+
+### 7. Stop using the default security group
+
+So I have one last thing where I am using the default and it is the Security Group. I would like to create a dedicated one and be able to set the inbound and outbound rules I need. The [documentation page](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) contains a lot of things but I managed to have the thing I wanted. I did a mimic of the default security group but now I have full control over it. Here is the code below
+```tf
+######################################################
+################### SECURITY GROUP ###################
+######################################################
+
+resource "aws_security_group" "allow_traffic" {
+  name        = "AwsFargateGuide Allow Traffic VPC"
+  description = "Allow all outbound traffic, allow inbound traffic within a VPC, allow inbound traffic on port 80"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "AwsFargate Allow Traffic VPC"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_ipv4_port_80" {
+  security_group_id = aws_security_group.allow_traffic.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_ipv6_port_80" {
+  security_group_id = aws_security_group.allow_traffic.id
+  cidr_ipv6         = "::/0"
+  ip_protocol       = "tcp"
+  from_port         = 80
+  to_port           = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_all_traffic_within_security_group" {
+  security_group_id            = aws_security_group.allow_traffic.id
+  ip_protocol                  = "-1"
+  referenced_security_group_id = aws_security_group.allow_traffic.id
+}
+
+resource "aws_vpc_security_group_egress_rule" "allow_all_traffic_ipv4" {
+  security_group_id = aws_security_group.allow_traffic.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1" # semantically equivalent to all ports
+}
+```
+
+The pieces where I had a hard time was constructing exactly the rules I needed. What I wanted was
+1. allow inbound IP v4 traffic on port 80,
+2. allow inbound IP v6 traffic on port 80,
+3. allow all inbound traffic within the security group,
+4. allow all outbound ipV4 traffic.
+
+I removed the data source for the default security group, i.e. `data "aws_security_group" "default"` and used everywhere my new resource.
+
+Everything works well and I don't have any default in my configuration now, so more control and less bad surprises.
 
 ## Development
 
